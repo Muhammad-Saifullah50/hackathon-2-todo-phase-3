@@ -1,0 +1,412 @@
+openapi: 3.1.0
+info:
+  title: Recurring Tasks API
+  version: 1.0.0
+  description: Recurring task pattern management for automating task creation
+
+paths:
+  /api/v1/tasks/{task_id}/recurrence:
+    get:
+      summary: Get recurrence pattern for a task
+      operationId: getRecurrencePattern
+      tags:
+        - recurring
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Recurrence pattern details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecurrencePattern'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Task not found or has no recurrence pattern
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      summary: Add recurrence pattern to a task
+      operationId: addRecurrencePattern
+      tags:
+        - recurring
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecurrencePatternCreate'
+      responses:
+        '201':
+          description: Recurrence pattern added successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecurrencePattern'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          description: Task already has a recurrence pattern
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    patch:
+      summary: Update recurrence pattern for a task
+      operationId: updateRecurrencePattern
+      tags:
+        - recurring
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecurrencePatternUpdate'
+      responses:
+        '200':
+          description: Recurrence pattern updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecurrencePattern'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+    delete:
+      summary: Remove recurrence pattern from a task
+      operationId: deleteRecurrencePattern
+      tags:
+        - recurring
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Recurrence pattern removed successfully
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /api/v1/tasks/recurring:
+    get:
+      summary: List all tasks with recurrence patterns
+      operationId: listRecurringTasks
+      tags:
+        - recurring
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: frequency
+          in: query
+          schema:
+            type: string
+            enum: [daily, weekly, monthly, custom]
+          description: Filter by recurrence frequency
+      responses:
+        '200':
+          description: List of recurring tasks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tasks:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        title:
+                          type: string
+                        recurrence_pattern:
+                          $ref: '#/components/schemas/RecurrencePattern'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /api/v1/tasks/{task_id}/recurrence/preview:
+    get:
+      summary: Preview next occurrences for a recurrence pattern
+      operationId: previewRecurrenceOccurrences
+      tags:
+        - recurring
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: count
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 30
+            default: 5
+          description: Number of future occurrences to preview
+      responses:
+        '200':
+          description: List of next occurrence dates
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  next_occurrences:
+                    type: array
+                    items:
+                      type: string
+                      format: date-time
+                  pattern_summary:
+                    type: string
+                    example: 'Every week on Monday, Wednesday'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    RecurrencePattern:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        task_id:
+          type: string
+          format: uuid
+        frequency:
+          type: string
+          enum: [daily, weekly, monthly, custom]
+        interval:
+          type: integer
+          minimum: 1
+          description: Every N days/weeks/months
+        days_of_week:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+            maximum: 6
+          nullable: true
+          description: For weekly frequency (0=Sunday, 6=Saturday)
+        day_of_month:
+          type: integer
+          minimum: 1
+          maximum: 31
+          nullable: true
+          description: For monthly frequency
+        end_date:
+          type: string
+          format: date-time
+          nullable: true
+          description: When to stop creating occurrences
+        next_occurrence_date:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - task_id
+        - frequency
+        - interval
+        - next_occurrence_date
+        - created_at
+        - updated_at
+
+    RecurrencePatternCreate:
+      type: object
+      properties:
+        frequency:
+          type: string
+          enum: [daily, weekly, monthly, custom]
+        interval:
+          type: integer
+          minimum: 1
+          default: 1
+          description: Every N days/weeks/months
+        days_of_week:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+            maximum: 6
+          nullable: true
+          description: Required for weekly frequency (0=Sunday, 6=Saturday)
+          example: [1, 3, 5]
+        day_of_month:
+          type: integer
+          minimum: 1
+          maximum: 31
+          nullable: true
+          description: Required for monthly frequency
+        end_date:
+          type: string
+          format: date-time
+          nullable: true
+          description: Optional end date for recurrence
+      required:
+        - frequency
+      example:
+        frequency: 'weekly'
+        interval: 1
+        days_of_week: [1, 3, 5]
+        end_date: null
+
+    RecurrencePatternUpdate:
+      type: object
+      properties:
+        frequency:
+          type: string
+          enum: [daily, weekly, monthly, custom]
+        interval:
+          type: integer
+          minimum: 1
+        days_of_week:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+            maximum: 6
+          nullable: true
+        day_of_month:
+          type: integer
+          minimum: 1
+          maximum: 31
+          nullable: true
+        end_date:
+          type: string
+          format: date-time
+          nullable: true
+      minProperties: 1
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        limit:
+          type: integer
+          minimum: 1
+        total:
+          type: integer
+          minimum: 0
+        total_pages:
+          type: integer
+          minimum: 0
+      required:
+        - page
+        - limit
+        - total
+        - total_pages
+
+    Error:
+      type: object
+      properties:
+        detail:
+          type: string
+        errors:
+          type: array
+          items:
+            type: string
+      required:
+        - detail
+
+  responses:
+    UnauthorizedError:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFoundError:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ValidationError:
+      description: Validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

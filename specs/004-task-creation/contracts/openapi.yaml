@@ -1,0 +1,367 @@
+openapi: 3.1.0
+info:
+  title: Task Creation API
+  description: API contract for creating tasks in the Todo Web Application
+  version: 1.0.0
+  contact:
+    name: Todo App Development Team
+
+servers:
+  - url: http://localhost:8000
+    description: Local development
+  - url: https://api.todo-app.example.com
+    description: Production
+
+security:
+  - BearerAuth: []
+
+paths:
+  /api/v1/tasks:
+    post:
+      summary: Create a new task
+      description: Creates a new task for the authenticated user with title, optional description, and optional priority
+      operationId: createTask
+      tags:
+        - Tasks
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskCreateRequest'
+            examples:
+              minimal:
+                summary: Minimal task (title only)
+                value:
+                  title: "Buy groceries"
+              with_description:
+                summary: Task with description
+                value:
+                  title: "Finish project report"
+                  description: "Complete sections 3-5 and add conclusion"
+              with_priority:
+                summary: Task with high priority
+                value:
+                  title: "Fix critical bug"
+                  description: "Authentication timeout issue in production"
+                  priority: "HIGH"
+      responses:
+        '201':
+          description: Task created successfully
+          headers:
+            Location:
+              description: URL of the created task
+              schema:
+                type: string
+                example: "/api/v1/tasks/a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskCreateResponse'
+              examples:
+                success:
+                  summary: Successful task creation
+                  value:
+                    success: true
+                    message: "Task created successfully"
+                    data:
+                      id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                      title: "Buy groceries"
+                      description: "Milk, eggs, bread"
+                      status: "pending"
+                      priority: "medium"
+                      user_id: "user_abc123"
+                      created_at: "2025-12-20T10:30:00Z"
+                      updated_at: "2025-12-20T10:30:00Z"
+                      completed_at: null
+
+        '400':
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+              examples:
+                title_too_long:
+                  summary: Title exceeds character limit
+                  value:
+                    success: false
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Invalid input data"
+                    details:
+                      - field: "title"
+                        message: "Title must be 100 characters or less"
+                title_too_many_words:
+                  summary: Title exceeds word limit
+                  value:
+                    success: false
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Invalid input data"
+                    details:
+                      - field: "title"
+                        message: "Title must be 50 words or less"
+                empty_title:
+                  summary: Title is empty
+                  value:
+                    success: false
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Invalid input data"
+                    details:
+                      - field: "title"
+                        message: "Title cannot be empty"
+                description_too_long:
+                  summary: Description exceeds character limit
+                  value:
+                    success: false
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Invalid input data"
+                    details:
+                      - field: "description"
+                        message: "Description must be 500 characters or less"
+                invalid_priority:
+                  summary: Invalid priority value
+                  value:
+                    success: false
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Invalid input data"
+                    details:
+                      - field: "priority"
+                        message: "Priority must be one of: LOW, MEDIUM, HIGH"
+
+        '401':
+          description: Unauthorized - missing or invalid authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                missing_token:
+                  summary: No authentication token provided
+                  value:
+                    success: false
+                    error:
+                      code: "UNAUTHORIZED"
+                      message: "Authentication required"
+                invalid_token:
+                  summary: Invalid or expired token
+                  value:
+                    success: false
+                    error:
+                      code: "UNAUTHORIZED"
+                      message: "Could not validate credentials"
+
+        '422':
+          description: Unprocessable Entity - malformed JSON
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                malformed_json:
+                  summary: Invalid JSON in request body
+                  value:
+                    success: false
+                    error:
+                      code: "UNPROCESSABLE_ENTITY"
+                      message: "Invalid JSON format"
+
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                server_error:
+                  summary: Unexpected server error
+                  value:
+                    success: false
+                    error:
+                      code: "INTERNAL_ERROR"
+                      message: "Failed to create task. Please try again later."
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token from Better Auth authentication
+
+  schemas:
+    TaskCreateRequest:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Task title (1-100 characters, 1-50 words)
+          example: "Buy groceries"
+        description:
+          type: string
+          maxLength: 500
+          nullable: true
+          description: Optional task description (0-500 characters)
+          example: "Milk, eggs, bread"
+        priority:
+          type: string
+          enum: ["LOW", "MEDIUM", "HIGH"]
+          description: Task priority level (defaults to MEDIUM if not provided)
+          example: "MEDIUM"
+
+    TaskResponse:
+      type: object
+      required:
+        - id
+        - title
+        - status
+        - priority
+        - user_id
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique task identifier
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        title:
+          type: string
+          description: Task title
+          example: "Buy groceries"
+        description:
+          type: string
+          nullable: true
+          description: Task description (null if not provided)
+          example: "Milk, eggs, bread"
+        status:
+          type: string
+          enum: ["pending", "completed"]
+          description: Task completion status
+          example: "pending"
+        priority:
+          type: string
+          enum: ["low", "medium", "high"]
+          description: Task priority level
+          example: "medium"
+        user_id:
+          type: string
+          description: ID of the user who owns this task
+          example: "user_abc123"
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when task was created (ISO 8601, UTC)
+          example: "2025-12-20T10:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp when task was last modified (ISO 8601, UTC)
+          example: "2025-12-20T10:30:00Z"
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when task was completed (null for pending tasks)
+          example: null
+
+    TaskCreateResponse:
+      type: object
+      required:
+        - success
+        - message
+        - data
+      properties:
+        success:
+          type: boolean
+          description: Indicates if the operation was successful
+          example: true
+        message:
+          type: string
+          description: Human-readable success message
+          example: "Task created successfully"
+        data:
+          $ref: '#/components/schemas/TaskResponse'
+
+    ErrorResponse:
+      type: object
+      required:
+        - success
+        - error
+      properties:
+        success:
+          type: boolean
+          description: Always false for errors
+          example: false
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+              description: Machine-readable error code
+              enum:
+                - VALIDATION_ERROR
+                - UNAUTHORIZED
+                - UNPROCESSABLE_ENTITY
+                - INTERNAL_ERROR
+              example: "VALIDATION_ERROR"
+            message:
+              type: string
+              description: Human-readable error message
+              example: "Invalid input data"
+
+    ValidationErrorResponse:
+      type: object
+      required:
+        - success
+        - error
+        - details
+      properties:
+        success:
+          type: boolean
+          description: Always false for errors
+          example: false
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+              description: Error code for validation failures
+              example: "VALIDATION_ERROR"
+            message:
+              type: string
+              description: General error message
+              example: "Invalid input data"
+        details:
+          type: array
+          description: Array of field-specific validation errors
+          items:
+            type: object
+            required:
+              - field
+              - message
+            properties:
+              field:
+                type: string
+                description: Name of the field that failed validation
+                example: "title"
+              message:
+                type: string
+                description: Validation error message for this field
+                example: "Title must be 100 characters or less"

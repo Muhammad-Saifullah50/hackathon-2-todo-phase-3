@@ -1,0 +1,92 @@
+[project]
+name = "todoly-backend"
+version = "1.0.0"
+description = "FastAPI backend for Todoly application"
+readme = "README.cli.md"
+requires-python = ">=3.13"
+authors = [
+    {name = "Saifullah", email = "saif@example.com"}
+]
+dependencies = [
+    "fastapi>=0.100.0",
+    "sqlmodel>=0.0.14",
+    "alembic>=1.13.0",
+    "asyncpg>=0.29.0",
+    "uvicorn[standard]>=0.27.0",
+    "pydantic-settings>=2.1.0",
+    "bcrypt>=4.1.0",
+    "python-multipart>=0.0.7",
+    "pyjwt[crypto]>=2.8.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "httpx>=0.26.0",
+    "mypy>=1.7.0",
+    "ruff>=0.1.0",
+    "black>=23.0.0",
+    "poethepoet>=0.24.0",
+]
+
+[tool.poe.tasks]
+lint = "ruff check src tests"
+format = "black src tests"
+type-check = "mypy src"
+test = "pytest"
+test-cov = "pytest --cov=src --cov-report=html"
+check = ["format", "lint", "type-check", "test"]
+
+[tool.black]
+line-length = 100
+target-version = ["py313"]
+include = '\.pyi?$'
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "ARG", "PT"]
+ignore = ["E501"] # Handled by black
+
+[tool.mypy]
+strict = true
+python_version = "3.13"
+plugins = ["pydantic.mypy"]
+disallow_untyped_defs = true
+warn_return_any = true
+warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = ["sqlmodel.*", "alembic.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--verbose",
+    "--cov=src",
+    "--cov-report=term-missing",
+]
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["tests/*", "**/__init__.py", "alembic/*"]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+fail_under = 80
+
+[dependency-groups]
+dev = [
+    "aiosqlite>=0.22.0",
+]

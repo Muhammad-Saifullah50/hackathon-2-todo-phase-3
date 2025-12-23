@@ -1,0 +1,348 @@
+openapi: 3.1.0
+info:
+  title: User Preferences API
+  version: 1.0.0
+  description: User preferences management for themes, views, and personalization
+
+paths:
+  /api/v1/preferences:
+    get:
+      summary: Get all preferences for the authenticated user
+      operationId: getPreferences
+      tags:
+        - preferences
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User preferences
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPreferences'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+    patch:
+      summary: Update user preferences
+      operationId: updatePreferences
+      tags:
+        - preferences
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserPreferencesUpdate'
+      responses:
+        '200':
+          description: Preferences updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPreferences'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /api/v1/preferences/theme:
+    patch:
+      summary: Update theme preference
+      operationId: updateTheme
+      tags:
+        - preferences
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                theme:
+                  type: string
+                  enum: [light, dark, system, custom]
+                accent_color:
+                  type: string
+                  pattern: '^#[0-9A-Fa-f]{6}$'
+              minProperties: 1
+      responses:
+        '200':
+          description: Theme updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  theme:
+                    type: string
+                  accent_color:
+                    type: string
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /api/v1/preferences/view:
+    get:
+      summary: Get view preference for current page
+      operationId: getViewPreference
+      tags:
+        - preferences
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [tasks_list, dashboard, calendar, kanban]
+      responses:
+        '200':
+          description: View preference
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ViewPreference'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+    post:
+      summary: Save view preference for a page
+      operationId: saveViewPreference
+      tags:
+        - preferences
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ViewPreferenceCreate'
+      responses:
+        '200':
+          description: View preference saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ViewPreference'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /api/v1/preferences/onboarding:
+    patch:
+      summary: Mark onboarding tour as completed
+      operationId: completeOnboarding
+      tags:
+        - preferences
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                onboarding_completed:
+                  type: boolean
+              required:
+                - onboarding_completed
+      responses:
+        '200':
+          description: Onboarding status updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  onboarding_completed:
+                    type: boolean
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /api/v1/preferences/reset:
+    post:
+      summary: Reset all preferences to defaults
+      operationId: resetPreferences
+      tags:
+        - preferences
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Preferences reset successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPreferences'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    UserPreferences:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        theme:
+          type: string
+          enum: [light, dark, system, custom]
+        accent_color:
+          type: string
+          pattern: '^#[0-9A-Fa-f]{6}$'
+        default_view:
+          type: string
+          enum: [list, grid, kanban, calendar]
+        default_sort:
+          type: string
+          enum: [created_desc, created_asc, due_date, priority, title]
+        show_completed_tasks:
+          type: boolean
+        enable_animations:
+          type: boolean
+        onboarding_completed:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - user_id
+        - theme
+        - accent_color
+        - default_view
+        - default_sort
+        - show_completed_tasks
+        - enable_animations
+        - onboarding_completed
+        - created_at
+        - updated_at
+
+    UserPreferencesUpdate:
+      type: object
+      properties:
+        theme:
+          type: string
+          enum: [light, dark, system, custom]
+        accent_color:
+          type: string
+          pattern: '^#[0-9A-Fa-f]{6}$'
+        default_view:
+          type: string
+          enum: [list, grid, kanban, calendar]
+        default_sort:
+          type: string
+          enum: [created_desc, created_asc, due_date, priority, title]
+        show_completed_tasks:
+          type: boolean
+        enable_animations:
+          type: boolean
+        onboarding_completed:
+          type: boolean
+      minProperties: 1
+
+    ViewPreference:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        page:
+          type: string
+          enum: [tasks_list, dashboard, calendar, kanban]
+        view_state:
+          type: object
+          description: JSON object containing page-specific view state
+          additionalProperties: true
+          example:
+            sort_by: 'due_date'
+            filter_status: 'pending'
+            filter_priority: ['high', 'medium']
+            selected_tags: ['work', 'urgent']
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - user_id
+        - page
+        - view_state
+        - created_at
+        - updated_at
+
+    ViewPreferenceCreate:
+      type: object
+      properties:
+        page:
+          type: string
+          enum: [tasks_list, dashboard, calendar, kanban]
+        view_state:
+          type: object
+          description: JSON object containing page-specific view state
+          additionalProperties: true
+      required:
+        - page
+        - view_state
+      example:
+        page: 'tasks_list'
+        view_state:
+          sort_by: 'due_date'
+          filter_status: 'pending'
+          filter_priority: ['high']
+          selected_tags: ['work']
+
+    Error:
+      type: object
+      properties:
+        detail:
+          type: string
+        errors:
+          type: array
+          items:
+            type: string
+      required:
+        - detail
+
+  responses:
+    UnauthorizedError:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ValidationError:
+      description: Validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

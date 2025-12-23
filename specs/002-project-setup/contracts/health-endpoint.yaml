@@ -1,0 +1,154 @@
+openapi: 3.1.0
+info:
+  title: Todo API Health Check
+  description: |
+    Health check endpoint contract for the Todo API backend service.
+    This endpoint is used by Docker Compose health checks, monitoring systems,
+    and load balancers to verify service availability.
+  version: 1.0.0
+  contact:
+    name: Todo API Team
+
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+  - url: https://api.example.com
+    description: Production server
+
+paths:
+  /health:
+    get:
+      summary: Health check endpoint
+      description: |
+        Returns the health status of the API service and its dependencies.
+        This endpoint should respond quickly (<100ms) and check:
+        - API service is running
+        - Database connection is alive
+        - (Future) External service dependencies
+      operationId: getHealth
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy and all dependencies are operational
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              examples:
+                healthy:
+                  summary: All systems operational
+                  value:
+                    status: healthy
+                    timestamp: "2025-12-19T12:34:56.789Z"
+                    version: "1.0.0"
+                    checks:
+                      database:
+                        status: connected
+                        latency_ms: 12
+                      api:
+                        status: operational
+                        uptime_seconds: 3600
+        '503':
+          description: Service is unhealthy or dependencies are unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              examples:
+                database_down:
+                  summary: Database connection failed
+                  value:
+                    status: unhealthy
+                    timestamp: "2025-12-19T12:34:56.789Z"
+                    version: "1.0.0"
+                    checks:
+                      database:
+                        status: disconnected
+                        error: "Connection timeout after 5000ms"
+                      api:
+                        status: operational
+                        uptime_seconds: 3600
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+        - version
+        - checks
+      properties:
+        status:
+          type: string
+          enum:
+            - healthy
+            - unhealthy
+          description: Overall health status of the service
+          example: healthy
+        timestamp:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp when health check was performed
+          example: "2025-12-19T12:34:56.789Z"
+        version:
+          type: string
+          description: API version number (semantic versioning)
+          example: "1.0.0"
+          pattern: '^\d+\.\d+\.\d+$'
+        checks:
+          type: object
+          description: Detailed status of individual health checks
+          required:
+            - database
+            - api
+          properties:
+            database:
+              $ref: '#/components/schemas/DatabaseCheck'
+            api:
+              $ref: '#/components/schemas/ApiCheck'
+
+    DatabaseCheck:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - connected
+            - disconnected
+          description: Database connection status
+          example: connected
+        latency_ms:
+          type: integer
+          description: Database query latency in milliseconds
+          example: 12
+          minimum: 0
+        error:
+          type: string
+          description: Error message if connection failed
+          example: "Connection timeout after 5000ms"
+
+    ApiCheck:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - operational
+            - degraded
+          description: API service operational status
+          example: operational
+        uptime_seconds:
+          type: integer
+          description: Service uptime in seconds since last restart
+          example: 3600
+          minimum: 0
+
+tags:
+  - name: Health
+    description: Service health monitoring endpoints

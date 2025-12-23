@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+.next/
+out/
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Generated files
+*.min.js
+
+# Config files
+next.config.js
+postcss.config.js
+tailwind.config.js
+
+# Test artifacts
+.storybook/
+__snapshots__/
+
+# Lock files
+package-lock.json
+yarn.lock
+pnpm-lock.yaml

@@ -1,0 +1,343 @@
+openapi: 3.1.0
+info:
+  title: Due Dates API
+  version: 1.0.0
+  description: Due date management and filtering endpoints
+
+paths:
+  /api/v1/tasks/{task_id}/due-date:
+    patch:
+      summary: Set or update due date for a task
+      operationId: updateDueDate
+      tags:
+        - due-dates
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                due_date:
+                  type: string
+                  format: date-time
+                  nullable: true
+                  description: ISO 8601 datetime with timezone. Set to null to remove due date.
+              required:
+                - due_date
+      responses:
+        '200':
+          description: Due date updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  task_id:
+                    type: string
+                    format: uuid
+                  due_date:
+                    type: string
+                    format: date-time
+                    nullable: true
+                  due_date_status:
+                    type: string
+                    enum: [overdue, due_soon, upcoming, none]
+                    description: Calculated status based on due date
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /api/v1/tasks/due:
+    get:
+      summary: Get tasks filtered by due date criteria
+      operationId: getTasksByDueDate
+      tags:
+        - due-dates
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: filter
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [overdue, today, tomorrow, this_week, next_week, this_month, no_due_date]
+          description: Predefined due date filter
+
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+
+        - name: include_completed
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: Include completed tasks in results
+
+      responses:
+        '200':
+          description: Filtered tasks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tasks:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TaskWithDueDate'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  filter_summary:
+                    type: object
+                    properties:
+                      filter:
+                        type: string
+                      date_range:
+                        type: object
+                        properties:
+                          start:
+                            type: string
+                            format: date-time
+                          end:
+                            type: string
+                            format: date-time
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /api/v1/tasks/due/stats:
+    get:
+      summary: Get statistics about tasks grouped by due date status
+      operationId: getDueDateStats
+      tags:
+        - due-dates
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Due date statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  overdue:
+                    type: integer
+                    description: Count of overdue tasks
+                  due_today:
+                    type: integer
+                    description: Count of tasks due today
+                  due_tomorrow:
+                    type: integer
+                    description: Count of tasks due tomorrow
+                  due_this_week:
+                    type: integer
+                    description: Count of tasks due this week
+                  due_this_month:
+                    type: integer
+                    description: Count of tasks due this month
+                  no_due_date:
+                    type: integer
+                    description: Count of tasks without due date
+                  total_with_due_date:
+                    type: integer
+                    description: Total tasks with any due date
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /api/v1/tasks/due/upcoming:
+    get:
+      summary: Get upcoming tasks ordered by due date
+      operationId: getUpcomingTasks
+      tags:
+        - due-dates
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: days
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 90
+            default: 7
+          description: Number of days to look ahead
+
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+
+      responses:
+        '200':
+          description: Upcoming tasks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tasks:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TaskWithDueDate'
+                  days_ahead:
+                    type: integer
+                  total_count:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    TaskWithDueDate:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [pending, completed]
+        priority:
+          type: string
+          enum: [low, medium, high]
+        due_date:
+          type: string
+          format: date-time
+          nullable: true
+        due_date_status:
+          type: string
+          enum: [overdue, due_soon, upcoming, none]
+          description: >
+            - overdue: Past due date
+            - due_soon: Due within 24 hours
+            - upcoming: Due in more than 24 hours
+            - none: No due date set
+        days_until_due:
+          type: integer
+          nullable: true
+          description: Negative for overdue, positive for upcoming, null if no due date
+        tags:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              name:
+                type: string
+              color:
+                type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - title
+        - status
+        - priority
+        - due_date_status
+        - created_at
+        - updated_at
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        limit:
+          type: integer
+          minimum: 1
+        total:
+          type: integer
+          minimum: 0
+        total_pages:
+          type: integer
+          minimum: 0
+      required:
+        - page
+        - limit
+        - total
+        - total_pages
+
+    Error:
+      type: object
+      properties:
+        detail:
+          type: string
+        errors:
+          type: array
+          items:
+            type: string
+      required:
+        - detail
+
+  responses:
+    UnauthorizedError:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFoundError:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ValidationError:
+      description: Validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

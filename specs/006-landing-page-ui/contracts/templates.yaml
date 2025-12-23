@@ -1,0 +1,465 @@
+openapi: 3.1.0
+info:
+  title: Task Templates API
+  version: 1.0.0
+  description: Task template management for creating reusable task structures
+
+paths:
+  /api/v1/templates:
+    get:
+      summary: List all task templates for the authenticated user
+      operationId: listTemplates
+      tags:
+        - templates
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search by template name
+      responses:
+        '200':
+          description: List of task templates
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  templates:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TaskTemplate'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+    post:
+      summary: Create a new task template
+      operationId: createTemplate
+      tags:
+        - templates
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskTemplateCreate'
+      responses:
+        '201':
+          description: Template created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskTemplate'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /api/v1/templates/{template_id}:
+    get:
+      summary: Get a specific task template by ID
+      operationId: getTemplate
+      tags:
+        - templates
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TemplateId'
+      responses:
+        '200':
+          description: Template details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskTemplate'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+    patch:
+      summary: Update a task template
+      operationId: updateTemplate
+      tags:
+        - templates
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TemplateId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskTemplateUpdate'
+      responses:
+        '200':
+          description: Template updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskTemplate'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+    delete:
+      summary: Delete a task template
+      operationId: deleteTemplate
+      tags:
+        - templates
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TemplateId'
+      responses:
+        '204':
+          description: Template deleted successfully
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /api/v1/templates/{template_id}/apply:
+    post:
+      summary: Create a new task from a template
+      operationId: applyTemplate
+      tags:
+        - templates
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TemplateId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                overrides:
+                  type: object
+                  properties:
+                    title:
+                      type: string
+                    description:
+                      type: string
+                    priority:
+                      type: string
+                      enum: [low, medium, high]
+                    due_date:
+                      type: string
+                      format: date-time
+                  description: Optional overrides for template fields
+      responses:
+        '201':
+          description: Task created from template
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  task_id:
+                    type: string
+                    format: uuid
+                  message:
+                    type: string
+                    example: 'Task created from template "Weekly Review"'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /api/v1/tasks/{task_id}/save-as-template:
+    post:
+      summary: Save an existing task as a template
+      operationId: saveTaskAsTemplate
+      tags:
+        - templates
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                template_name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                include_subtasks:
+                  type: boolean
+                  default: true
+                include_tags:
+                  type: boolean
+                  default: true
+              required:
+                - template_name
+      responses:
+        '201':
+          description: Template created from task
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskTemplate'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    TemplateId:
+      name: template_id
+      in: path
+      required: true
+      description: The unique identifier of the task template
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    TaskTemplate:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        title:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+          nullable: true
+        priority:
+          type: string
+          enum: [low, medium, high]
+        subtasks_template:
+          type: array
+          items:
+            type: object
+            properties:
+              description:
+                type: string
+                minLength: 1
+                maxLength: 200
+              order_index:
+                type: integer
+                minimum: 0
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              name:
+                type: string
+              color:
+                type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - user_id
+        - name
+        - title
+        - priority
+        - created_at
+        - updated_at
+
+    TaskTemplateCreate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: 'Weekly Review'
+        title:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: 'Complete weekly review'
+        description:
+          type: string
+          maxLength: 500
+          nullable: true
+        priority:
+          type: string
+          enum: [low, medium, high]
+          default: medium
+        subtasks_template:
+          type: array
+          items:
+            type: object
+            properties:
+              description:
+                type: string
+                minLength: 1
+                maxLength: 200
+              order_index:
+                type: integer
+                minimum: 0
+            required:
+              - description
+          nullable: true
+        tag_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          nullable: true
+      required:
+        - name
+        - title
+
+    TaskTemplateUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        title:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+          nullable: true
+        priority:
+          type: string
+          enum: [low, medium, high]
+        subtasks_template:
+          type: array
+          items:
+            type: object
+            properties:
+              description:
+                type: string
+                minLength: 1
+                maxLength: 200
+              order_index:
+                type: integer
+                minimum: 0
+          nullable: true
+        tag_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          nullable: true
+      minProperties: 1
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        limit:
+          type: integer
+          minimum: 1
+        total:
+          type: integer
+          minimum: 0
+        total_pages:
+          type: integer
+          minimum: 0
+      required:
+        - page
+        - limit
+        - total
+        - total_pages
+
+    Error:
+      type: object
+      properties:
+        detail:
+          type: string
+        errors:
+          type: array
+          items:
+            type: string
+      required:
+        - detail
+
+  responses:
+    UnauthorizedError:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFoundError:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ValidationError:
+      description: Validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

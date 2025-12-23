@@ -1,0 +1,122 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pipenv/
+.Pipfile.lock
+poetry.lock
+*.egg-info/
+.eggs/
+
+# Testing
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.tox/
+.nyc_output/
+coverage/
+junit.xml
+
+# OS
+.DS_Store
+Thumbs.db
+.DS_Store?
+ehthumbs.db
+Icon?
+VolumeIcon.icns
+*.nib
+*.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.vs/
+build/
+dist/
+*.tgz
+*.log
+
+# Environment
+.env
+.env.local
+.env.*.local
+.env.production
+.env.production.local
+*.env
+
+# Next.js
+.next/
+out/
+.export/
+
+# Docker
+.dockerignore
+
+# Git
+.git/
+
+# Documentation
+docs/
+
+# Database
+*.db
+*.db.*
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+
+# Temporary folders
+tmp/
+temp/
+
+# Production
+npm-shrinkwrap.json
+*.min.js
+*.min.css
+
+# Python
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+.installed.cfg
+*.egg
+MANIFEST

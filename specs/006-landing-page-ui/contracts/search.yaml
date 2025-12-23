@@ -1,0 +1,432 @@
+openapi: 3.1.0
+info:
+  title: Search and Filters API
+  version: 1.0.0
+  description: Advanced search, filtering, and sorting for tasks
+
+paths:
+  /api/v1/tasks/search:
+    get:
+      summary: Search and filter tasks with advanced criteria
+      operationId: searchTasks
+      tags:
+        - search
+      security:
+        - BearerAuth: []
+      parameters:
+        # Search
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: Search query for title, description, notes
+
+        # Filters
+        - name: status
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [pending, completed]
+          style: form
+          explode: true
+          description: Filter by task status
+
+        - name: priority
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [low, medium, high]
+          style: form
+          explode: true
+          description: Filter by priority
+
+        - name: tags
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+              format: uuid
+          style: form
+          explode: true
+          description: Filter by tag IDs (AND logic)
+
+        - name: has_due_date
+          in: query
+          schema:
+            type: boolean
+          description: Filter tasks with/without due dates
+
+        - name: due_date_from
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter tasks due after this date
+
+        - name: due_date_to
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter tasks due before this date
+
+        - name: overdue
+          in: query
+          schema:
+            type: boolean
+          description: Filter overdue tasks only
+
+        - name: has_subtasks
+          in: query
+          schema:
+            type: boolean
+          description: Filter tasks with/without subtasks
+
+        - name: has_notes
+          in: query
+          schema:
+            type: boolean
+          description: Filter tasks with/without notes
+
+        - name: is_recurring
+          in: query
+          schema:
+            type: boolean
+          description: Filter recurring tasks only
+
+        - name: created_from
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter tasks created after this date
+
+        - name: created_to
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter tasks created before this date
+
+        # Sorting
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            enum: [created_desc, created_asc, due_date, priority, title, updated_desc, manual_order]
+            default: created_desc
+          description: Sort order
+
+        # Pagination
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+
+        # Response options
+        - name: include_deleted
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: Include soft-deleted tasks
+
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tasks:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Task'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  filters_applied:
+                    type: object
+                    description: Summary of applied filters
+                    properties:
+                      search_query:
+                        type: string
+                        nullable: true
+                      status:
+                        type: array
+                        items:
+                          type: string
+                      priority:
+                        type: array
+                        items:
+                          type: string
+                      tags:
+                        type: array
+                        items:
+                          type: string
+                      date_range:
+                        type: object
+                        properties:
+                          due_date_from:
+                            type: string
+                            format: date-time
+                            nullable: true
+                          due_date_to:
+                            type: string
+                            format: date-time
+                            nullable: true
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /api/v1/tasks/autocomplete:
+    get:
+      summary: Autocomplete suggestions for search
+      operationId: autocompleteSearch
+      tags:
+        - search
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+          description: Search query (minimum 2 characters)
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 10
+      responses:
+        '200':
+          description: Autocomplete suggestions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  suggestions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        task_id:
+                          type: string
+                          format: uuid
+                        title:
+                          type: string
+                        matched_text:
+                          type: string
+                          description: Text that matched the query
+                        match_type:
+                          type: string
+                          enum: [title, description, notes]
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /api/v1/tasks/quick-filters:
+    get:
+      summary: Get predefined quick filter options
+      operationId: getQuickFilters
+      tags:
+        - search
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Quick filter options
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  filters:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          enum: [today, upcoming, overdue, high_priority, no_due_date, completed_today]
+                        label:
+                          type: string
+                        description:
+                          type: string
+                        count:
+                          type: integer
+                          description: Number of tasks matching this filter
+                    example:
+                      - id: 'today'
+                        label: 'Due Today'
+                        description: 'Tasks due today'
+                        count: 5
+                      - id: 'upcoming'
+                        label: 'Upcoming'
+                        description: 'Tasks due in the next 7 days'
+                        count: 12
+                      - id: 'overdue'
+                        label: 'Overdue'
+                        description: 'Tasks past their due date'
+                        count: 3
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Task:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [pending, completed]
+        priority:
+          type: string
+          enum: [low, medium, high]
+        due_date:
+          type: string
+          format: date-time
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        manual_order:
+          type: integer
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              name:
+                type: string
+              color:
+                type: string
+        subtasks:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              description:
+                type: string
+              is_completed:
+                type: boolean
+        recurrence_pattern:
+          type: object
+          nullable: true
+          properties:
+            frequency:
+              type: string
+            interval:
+              type: integer
+      required:
+        - id
+        - title
+        - status
+        - priority
+        - created_at
+        - updated_at
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        limit:
+          type: integer
+          minimum: 1
+        total:
+          type: integer
+          minimum: 0
+        total_pages:
+          type: integer
+          minimum: 0
+      required:
+        - page
+        - limit
+        - total
+        - total_pages
+
+    Error:
+      type: object
+      properties:
+        detail:
+          type: string
+        errors:
+          type: array
+          items:
+            type: string
+      required:
+        - detail
+
+  responses:
+    UnauthorizedError:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ValidationError:
+      description: Validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
