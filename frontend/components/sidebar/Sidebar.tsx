@@ -1,25 +1,13 @@
 "use client";
 
 import { SidebarClient } from "./SidebarClient";
-import { authClient } from "@/lib/auth-client";
-import { use, cache } from "react";
-
-// Cache the session fetch to prevent duplicate requests
-const getSession = cache(async () => {
-  try {
-    const { data } = await authClient.getSession();
-    return data;
-  } catch (error) {
-    console.error("Error fetching session:", error);
-    return null;
-  }
-});
+import { useSession } from "@/components/session-provider";
 
 export function Sidebar() {
-  const session = use(getSession());
+  const { session, isLoading } = useSession();
 
-  // Don't render sidebar if user is not authenticated
-  if (!session) {
+  // Don't render sidebar while loading or if user is not authenticated
+  if (isLoading || !session) {
     return null;
   }
 

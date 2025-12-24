@@ -7,6 +7,7 @@ Auto-generated from all feature plans. Last updated: 2025-12-20
 - PostgreSQL with SQLModel ORM, Alembic migrations for schema versioning (005-task-management)
 - Framer Motion for animations, Recharts for charts, dnd-kit for drag-and-drop, cmdk for command palette, @use-gesture/react for mobile gestures, date-fns for dates, Zustand for client state (006-landing-page-ui)
 - (004-task-creation)
+- PostgreSQL 16+ (Neon) for tasks, users, conversations, messages, templates, tags (007-ai-chatbot)
 
 ## Project Structure
 
@@ -344,10 +345,9 @@ npx shadcn@latest add alert-dialog
 ```
 
 ## Recent Changes
+- 007-ai-chatbot: Added Python 3.13+ (backend), TypeScript 5.7+ (frontend)
 - 006-landing-page-ui: Added Framer Motion for animations, Recharts for charts, dnd-kit for drag-and-drop, cmdk for command palette, @use-gesture/react for mobile gestures, date-fns for dates, Zustand for client state
 - 006-landing-page-ui: Implemented landing page with scroll animations, due dates with timezone handling, tags system with color coding, subtasks with auto-completion, recurring tasks, task templates, keyboard shortcuts (Cmd/Ctrl+K), multiple views (List/Grid/Kanban/Calendar/Dashboard), theme picker, mobile swipe gestures, onboarding tour
-- 005-task-management: Added Python 3.13+ (backend), TypeScript 5.7+ (frontend) + FastAPI 0.100+, SQLModel, PostgreSQL 16+ (Neon), Next.js 15, React 19, TanStack Query v5, Shadcn/ui
-- 005-task-management: Implemented comprehensive task management with soft delete, bulk operations, optimistic UI, accessibility features
 
 
 <!-- MANUAL ADDITIONS START -->

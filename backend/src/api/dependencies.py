@@ -8,7 +8,7 @@ from jose import JWTError, jwt
 from sqlmodel import Session
 
 from ..config import settings
-from ..database import get_session
+from ..db.session import get_db
 from ..models.user import User
 
 # HTTP Bearer security scheme for JWT tokens
@@ -17,7 +17,7 @@ security = HTTPBearer()
 
 async def get_current_user(
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
-    session: Annotated[Session, Depends(get_session)],
+    session: Annotated[Session, Depends(get_db)],
 ) -> User:
     """Extract and validate the current user from JWT token.
 

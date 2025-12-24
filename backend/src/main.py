@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.routes import health, recurring, search, subtasks, tags, tasks, templates, user
+from src.api.routes.chatkit import router as chatkit_router
 from src.config import settings
 
 
@@ -57,6 +58,7 @@ app.include_router(search.router)
 app.include_router(tags.router)
 app.include_router(recurring.router, prefix="/api/v1")
 app.include_router(templates.router, prefix="/api/v1")
+app.include_router(chatkit_router)  # ChatKit integration endpoint
 
 
 if __name__ == "__main__":

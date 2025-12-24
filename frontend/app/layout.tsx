@@ -1,11 +1,13 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
+import Script from 'next/script';
 import './globals.css';
 import Providers from '@/components/providers';
 import Navbar from '@/components/navbar';
 import { Toaster } from '@/components/ui/toaster';
 import { KeyboardShortcutsProvider } from '@/components/keyboard-shortcuts-provider';
 import { MobileProvider } from '@/components/mobile/MobileProvider';
+import { SessionProvider } from '@/components/session-provider';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -55,17 +57,24 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
+        {/* ChatKit web component - load once globally */}
+        <Script
+          src="https://cdn.platform.openai.com/deployments/chatkit/chatkit.js"
+          strategy="beforeInteractive"
+        />
         <Providers>
-          <KeyboardShortcutsProvider>
-            <div className="min-h-screen flex flex-col overflow-x-hidden">
-              <Navbar />
-              <div className="flex-1 overflow-x-hidden">
-                {children}
+          <SessionProvider>
+            <KeyboardShortcutsProvider>
+              <div className="min-h-screen flex flex-col overflow-x-hidden">
+                <Navbar />
+                <div className="flex-1 overflow-x-hidden">
+                  {children}
+                </div>
               </div>
-            </div>
-            <MobileProvider />
-            <Toaster />
-          </KeyboardShortcutsProvider>
+              <MobileProvider />
+              <Toaster />
+            </KeyboardShortcutsProvider>
+          </SessionProvider>
         </Providers>
       </body>
     </html>

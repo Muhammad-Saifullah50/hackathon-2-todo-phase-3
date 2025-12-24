@@ -1,29 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { authClient } from "@/lib/auth-client";
-import { useEffect, useState } from "react";
+import { LayoutDashboard } from "lucide-react";
+import { useSession } from "@/components/session-provider";
 
 export default function Navbar() {
-  const [session, setSession] = useState<{ user: unknown } | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { session, isLoading } = useSession();
+  const pathname = usePathname();
 
-  useEffect(() => {
-    const fetchSession = async () => {
-      try {
-        const { data } = await authClient.getSession();
-        setSession(data);
-      } catch (error) {
-        console.error("Error fetching session:", error);
-        setSession(null);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchSession();
-  }, []);
+  // Check if we're on the landing page
+  const isLandingPage = pathname === "/";
 
   return (
     <nav className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 py-3 flex items-center justify-between">
@@ -31,14 +19,26 @@ export default function Navbar() {
         Todoly
       </Link>
       <div className="flex items-center gap-4">
-        {!isLoading && !session && (
+        {!isLoading && (
           <>
-            <Button variant="ghost" asChild>
-              <Link href="/sign-in">Login</Link>
-            </Button>
-            <Button asChild>
-              <Link href="/sign-up">Sign Up</Link>
-            </Button>
+            {session && isLandingPage && (
+              <Button asChild>
+                <Link href="/tasks" className="flex items-center gap-2">
+                  <LayoutDashboard className="h-4 w-4" />
+                  Dashboard
+                </Link>
+              </Button>
+            )}
+            {!session && (
+              <>
+                <Button variant="ghost" asChild>
+                  <Link href="/sign-in">Login</Link>
+                </Button>
+                <Button asChild>
+                  <Link href="/sign-up">Sign Up</Link>
+                </Button>
+              </>
+            )}
           </>
         )}
       </div>

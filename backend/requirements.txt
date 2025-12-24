@@ -10,3 +10,10 @@ pydantic-settings>=2.1.0
 bcrypt>=4.1.0
 python-multipart>=0.0.7
 pyjwt[crypto]>=2.8.0
+python-jose[cryptography]>=3.3.0
+openai-agents[litellm]
+litellm>=1.0.0
+fastmcp>=2.0.0
+dateparser>=1.2.0
+mcp
+openai-chatkit>=1.0.0
