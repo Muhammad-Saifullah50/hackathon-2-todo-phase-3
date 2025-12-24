@@ -5,7 +5,7 @@ import { ChatKit, useChatKit } from "@openai/chatkit-react";
 import { X, MessageCircle } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:9000";
 const DOMAIN_KEY = process.env.NEXT_PUBLIC_CHATKIT_DOMAIN_KEY || "todoly-app";
 
 export function ChatWidget() {
@@ -56,7 +56,7 @@ export function ChatWidget() {
       }
     },
     theme: {
-      colorScheme: "dark",
+      colorScheme: "light",
       color: {
         accent: {
           primary: "#3b82f6", // Blue-500
@@ -168,7 +168,7 @@ export function ChatWidget() {
       {/* Close Button */}
       <button
         onClick={() => setIsOpen(false)}
-        className="absolute -top-10 right-0 w-8 h-8 rounded-full flex items-center justify-center transition-colors shadow-lg focus:outline-none bg-slate-800 hover:bg-slate-700 text-gray-300 hover:text-white"
+        className="absolute -top-10 right-0 w-8 h-8 rounded-full flex items-center justify-center transition-colors shadow-lg focus:outline-none bg-blue-600 hover:bg-blue-500 text-gray-300 hover:text-white"
         aria-label="Close chat"
       >
         <X className="w-4 h-4" />

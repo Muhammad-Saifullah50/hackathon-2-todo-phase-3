@@ -4,14 +4,14 @@ services:
       context: ./backend
       dockerfile: Dockerfile.dev
     ports:
-      - "8000:8000"
+      - "9000:9000"
     volumes:
       - ./backend:/app
       - /app/.venv # Don't overwrite container venv with host
     env_file:
       - ./backend/.env
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -28,7 +28,7 @@ services:
       - /app/node_modules # Don't overwrite container node_modules
       - /app/.next # Don't overwrite container build artifacts
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_API_URL=http://localhost:9000
     depends_on:
       backend:
         condition: service_healthy

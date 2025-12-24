@@ -6,8 +6,7 @@ Each tool is registered with the FastMCP server using the @mcp.tool() decorator.
 
 from typing import Any
 
-from mcp.shared.context import Context
-from mcp.server.fastmcp.utilities import CurrentContext
+from fastmcp import Context
 
 from src.core.logging import get_logger, log_tool_invocation
 from src.mcp_server.server import mcp, db
@@ -28,7 +27,7 @@ async def add_task(
     priority: str = "medium",
     tags: list[str] | None = None,
     user_id: str = "default_user",  # TODO: Get from authentication
-    ctx: Context = CurrentContext(),
+    ctx: Context | None = None,
 ) -> dict[str, Any]:
     """Add a new task to the user's task list.
 
@@ -53,7 +52,8 @@ async def add_task(
         - "Add task: Call mom tonight at 7pm (tag: personal)"
     """
     try:
-        await ctx.info(f"Creating task: {title}")
+        if ctx:
+            await ctx.info(f"Creating task: {title}")
 
         # Create database session for this request
         async with db.get_session() as session:
@@ -127,7 +127,8 @@ async def add_task(
                 "message": f"✅ Task '{title}' created successfully",
             }
 
-            await ctx.info(f"Task created: {task.id}")
+            if ctx:
+                await ctx.info(f"Task created: {task.id}")
             log_tool_invocation(
                 tool_name="add_task",
                 args={"title": title, "due_date": due_date, "priority": priority, "tags": tags},
@@ -138,7 +139,8 @@ async def add_task(
 
     except Exception as e:
         logger.error(f"Error in add_task: {e}", exc_info=True)
-        await ctx.error(f"Failed to create task: {str(e)}")
+        if ctx:
+            await ctx.error(f"Failed to create task: {str(e)}")
         log_tool_invocation(
             tool_name="add_task",
             args={"title": title, "due_date": due_date, "priority": priority, "tags": tags},
@@ -153,7 +155,7 @@ async def list_tasks(
     priority: str | None = None,
     tags: list[str] | None = None,
     user_id: str = "default_user",  # TODO: Get from authentication
-    ctx: Context = CurrentContext(),
+    ctx: Context | None = None,
 ) -> dict[str, Any]:
     """List tasks with optional filters.
 
@@ -177,7 +179,8 @@ async def list_tasks(
         - "Show tasks tagged with work"
     """
     try:
-        await ctx.info(f"Listing tasks with filters: status={status}, priority={priority}, tags={tags}")
+        if ctx:
+            await ctx.info(f"Listing tasks with filters: status={status}, priority={priority}, tags={tags}")
 
         # Create database session for this request
         async with db.get_session() as session:
@@ -262,7 +265,8 @@ async def list_tasks(
                 "message": f"Found {len(filtered_tasks)} task(s)",
             }
 
-            await ctx.info(f"Found {len(filtered_tasks)} tasks")
+            if ctx:
+                await ctx.info(f"Found {len(filtered_tasks)} tasks")
             log_tool_invocation(
                 tool_name="list_tasks",
                 args={"status": status, "priority": priority, "tags": tags},
@@ -273,7 +277,8 @@ async def list_tasks(
 
     except Exception as e:
         logger.error(f"Error in list_tasks: {e}", exc_info=True)
-        await ctx.error(f"Failed to list tasks: {str(e)}")
+        if ctx:
+            await ctx.error(f"Failed to list tasks: {str(e)}")
         log_tool_invocation(
             tool_name="list_tasks",
             args={"status": status, "priority": priority, "tags": tags},

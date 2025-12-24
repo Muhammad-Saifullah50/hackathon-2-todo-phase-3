@@ -6,10 +6,21 @@ task management operations as tools that can be invoked by AI agents.
 
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
+from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
+
+# Load environment variables from .env file
+# Look for .env in backend directory (parent of src)
+env_path = Path(__file__).parent.parent.parent / ".env"
+if env_path.exists():
+    load_dotenv(env_path)
+    print(f"✅ Loaded environment from {env_path}")
+else:
+    print(f"⚠️  .env file not found at {env_path}, using system environment variables")
 
 # Get database URL from environment
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -22,6 +33,7 @@ if DATABASE_URL.startswith("postgresql://"):
 
 
 # Database connection manager
+
 class Database:
     """Database connection manager for MCP server."""
 
@@ -75,11 +87,12 @@ mcp = FastMCP(
 
 # Import tools to register them with the MCP server
 # This must be after mcp is created so tools can import it
-from src.mcp_server.tools import task_tools  # noqa: E402, F401
+# from src.mcp_server.tools import task_tools  # noqa: E402, F401
 
 if __name__ == "__main__":
+    # Run with HTTP transport (supports streamable-http)
+    # Server will be available at http://0.0.0.0:8000/mcp
     mcp.run(
         transport="streamable-http",
-        host="0.0.0.0",
-        port=8001,  # Different port from main API
+    
     )

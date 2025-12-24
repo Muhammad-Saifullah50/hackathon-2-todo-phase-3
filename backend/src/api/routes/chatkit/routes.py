@@ -11,9 +11,10 @@ from chatkit.server import StreamingResult
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import Response, StreamingResponse
 
-from src.api.dependencies import get_current_user
+from src.auth import get_current_user
 from src.core.chatkit_server import TodolyChatKitServer
 from src.core.logging import get_logger
+from src.models.user import User
 
 logger = get_logger(__name__)
 router = APIRouter(tags=["chatkit"])
@@ -40,7 +41,7 @@ def get_chatkit_server() -> TodolyChatKitServer:
 @router.post("/chatkit")
 async def chatkit_endpoint(
     request: Request,
-    current_user: dict = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     """ChatKit integration endpoint.
 
@@ -62,7 +63,7 @@ async def chatkit_endpoint(
     """
     try:
         # Extract user ID from authenticated user
-        user_id = current_user.get("id")
+        user_id = current_user.id
         if not user_id:
             logger.error("User not authenticated")
             return Response(
@@ -83,8 +84,8 @@ async def chatkit_endpoint(
         server = get_chatkit_server()
 
         # Process the request using the ChatKit server
-        body = await request.body()
-        result = await server.process(body, context)
+        result = await server.process(await request.body(), context)
+        logger.info(f"ChatKit processing complete, result type: {type(result).__name__}")
 
         # Return appropriate response type
         if isinstance(result, StreamingResult):

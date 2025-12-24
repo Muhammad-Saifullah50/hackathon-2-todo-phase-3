@@ -16,7 +16,7 @@
 import { test, expect } from '@playwright/test';
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9000';
 
 // Mock user credentials (adjust based on your test setup)
 const TEST_USER = {

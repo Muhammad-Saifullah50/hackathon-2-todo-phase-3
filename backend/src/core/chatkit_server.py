@@ -4,18 +4,23 @@ This module provides the ChatKit server that bridges the ChatKit frontend
 with our OpenAI Agents SDK + FastMCP + LiteLLM backend.
 """
 
-import os
 from typing import Any, AsyncIterator
 
 from agents import Agent, Runner, ModelSettings
-from agents.mcp import MCPServerStdio
+from agents.mcp import MCPServerStreamableHttp
 from agents.extensions.models.litellm_model import LitellmModel
 from chatkit.agents import AgentContext, simple_to_agent_input, stream_agent_response
 from chatkit.server import ChatKitServer
-from chatkit.types import ClientToolCallItem, ThreadMetadata, UserMessageItem
+from chatkit.types import (
+    ClientToolCallItem,
+    ErrorEvent,
+    ThreadMetadata,
+    UserMessageItem,
+)
 
 from src.core.chatkit_store import NeonChatKitStore
 from src.core.logging import get_logger
+from src.config import settings
 
 logger = get_logger(__name__)
 
@@ -33,8 +38,8 @@ title_agent = Agent(
 
     Return ONLY the title text, nothing else.""",
     model=LitellmModel(
-        model="zai/glm-4.5-air",
-        api_key=os.getenv("ZAI_API_KEY"),
+        model="gemini/gemini-2.5-flash-lite",
+        api_key=settings.GEMINI_API_KEY,
     ),
     model_settings=ModelSettings(
         temperature=0.7,
@@ -68,83 +73,54 @@ class TodolyChatKitServer(ChatKitServer):
 
         # Agent will be created per request
 
-    async def _create_agent_with_mcp(self) -> tuple[Agent, MCPServerStdio]:
+    async def _create_agent_with_mcp(self) -> tuple[Agent | None]:
         """Create and configure the agent with FastMCP server.
 
         Returns:
             Tuple of (Agent instance, MCP server instance)
         """
-        # Get ZAI API key from environment
-        zai_api_key = os.getenv("ZAI_API_KEY")
-        if not zai_api_key:
-            logger.warning("ZAI_API_KEY not found in environment")
+        # # Create MCP server instance for FastMCP
+        # mcp_server = MCPServerStdio(
+        #     name="Task Management Server",
+        #     params={
+        #         "command": "python",
+        #         "args": ["-m", "src.mcp_server.server"],
+        #     },
+        # )
 
-        # Create MCP server instance for FastMCP
-        mcp_server = MCPServerStdio(
-            name="Task Management Server",
-            params={
-                "command": "python",
-                "args": ["-m", "src.mcp_server.server"],
-            },
-        )
 
-        # Create task management agent
+        # Create task management agent (without MCP for now)
         agent = Agent(
             name="TaskBot",
             instructions="""You are a helpful task management assistant. Your role is to help users manage their tasks through natural conversation.
 
 **Your Capabilities:**
-- Create new tasks with natural language descriptions using add_task tool
-- List and filter tasks by status, priority, or tags using list_tasks tool
-- Parse due dates from expressions like "tomorrow", "next Friday", "in 2 weeks"
-- Set task priorities (low, medium, high)
-- Add tags to organize tasks
-- Help users stay organized and productive
+- Answer questions about tasks
+- Provide friendly and helpful responses
+- Be conversational and engaging
 
 **Guidelines:**
 - Always be friendly and encouraging
-- When creating tasks, extract all relevant details (title, description, due date, priority, tags)
-- If a due date is ambiguous, ask clarifying questions
-- Confirm actions with clear, concise messages
+- Be conversational and helpful
 - Use emojis to make interactions engaging (✅ ✏️ 📝 📋 🎯 etc.)
 
-**Available Tools:**
-- add_task(title, description, due_date, priority, tags): Create a new task
-- list_tasks(status, priority, tags): List tasks with optional filters
-
-**Example Interactions:**
-
-User: "Add a task to buy groceries tomorrow"
-You: *Call add_task(title="Buy groceries", due_date="tomorrow")*
-Response: "✅ I've added 'Buy groceries' to your tasks, due tomorrow!"
-
-User: "Show me my pending tasks"
-You: *Call list_tasks(status="pending")*
-Response: "📋 Here are your pending tasks: [list from tool result]"
-
-User: "Create a high priority task to finish the report by Friday with tags work and urgent"
-You: *Call add_task(title="Finish the report", due_date="Friday", priority="high", tags=["work", "urgent"])*
-Response: "✅ Created high priority task 'Finish the report', due Friday! Tagged with work, urgent."
-
 **Important:**
-- Always use the available tools to perform actions
-- Extract task details from natural language
 - Be conversational and helpful
-- Confirm what you've done with the results from the tools""",
+- Provide friendly responses to user queries""",
             model=LitellmModel(
-                model="zai/glm-4.5-air",
-                api_key=zai_api_key,
+                model="gemini/gemini-2.5-flash-lite",
+                api_key=settings.GEMINI_API_KEY,
             ),
             model_settings=ModelSettings(
                 include_usage=True,
                 temperature=0.7,
                 max_tokens=2048,
             ),
-            mcp_servers=[mcp_server],
+            # mcp_servers=[mcp_server],  # Commented out for now
         )
 
-        logger.info("Agent created with GLM-4.5-air model and FastMCP tools")
-        return agent, mcp_server
+        logger.info("Agent created with GLM-4.5-air model (MCP disabled)")
+        return agent, None  # Return None for MCP server
 
     async def maybe_update_thread_title(
         self,
@@ -161,27 +137,34 @@ Response: "✅ Created high priority task 'Finish the report', due Friday! Tagge
         """
         # Only generate title if thread doesn't have one
         if thread.title is not None:
+            logger.debug(f"Thread {thread.id} already has title: '{thread.title}'")
             return
 
         try:
+            logger.info(f"Generating title for thread {thread.id}")
+
             # Convert user message to agent input
             agent_input = await simple_to_agent_input(input_item)
+            logger.debug(f"Agent input: {agent_input}")
 
             # Run title generation agent
             run = await Runner.run(title_agent, input=agent_input)
+            logger.debug(f"Title agent run completed: {run}")
 
             # Update thread with generated title
             thread.title = run.final_output.strip()
+            logger.info(f"Generated title: '{thread.title}'")
 
             # Save the updated thread
             await self.store.save_thread(thread, context)
-
             logger.info(
-                f"Generated thread title: '{thread.title}' for thread {thread.id}"
+                f"Saved thread with title: '{thread.title}' for thread {thread.id}"
             )
+
         except Exception as e:
             logger.error(f"Failed to generate thread title: {e}", exc_info=True)
             # Don't fail the request if title generation fails
+            # Don't set a fallback title - let it remain None so UI shows date/time
 
     async def respond(
         self,
@@ -203,11 +186,15 @@ Response: "✅ Created high priority task 'Finish the report', due Friday! Tagge
             ChatKit-compatible event stream
         """
         try:
-            # Generate thread title asynchronously (non-blocking)
-            if input and isinstance(input, UserMessageItem):
-                # Don't await - let it run in background
-                import asyncio
+            logger.info(
+                f"Respond called: thread_id={thread.id}, thread_title={thread.title}, "
+                f"input_type={type(input).__name__}, has_input={input is not None}"
+            )
 
+            # Generate thread title asynchronously (non-blocking)
+            # This runs in the background while the agent responds
+            if input and isinstance(input, UserMessageItem):
+                import asyncio
                 asyncio.create_task(
                     self.maybe_update_thread_title(thread, input, context)
                 )
@@ -239,11 +226,10 @@ Response: "✅ Created high priority task 'Finish the report', due Friday! Tagge
 
         except Exception as e:
             logger.error(f"Error in respond: {e}", exc_info=True)
-            # Yield error event in ChatKit format
-            yield {
-                "type": "error",
-                "error": {
-                    "message": f"Failed to process request: {str(e)}",
-                    "code": "INTERNAL_ERROR",
-                },
-            }
+            # Yield error event in ChatKit format using proper Pydantic model
+            yield ErrorEvent(
+                type="error",
+                code="custom",
+                message=f"Failed to process request: {str(e)}",
+                allow_retry=True,
+            )

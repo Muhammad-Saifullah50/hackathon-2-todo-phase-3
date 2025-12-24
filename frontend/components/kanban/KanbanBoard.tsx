@@ -63,7 +63,7 @@ export function KanbanBoard() {
 
     try {
       // Optimistically update the task status
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/tasks/${taskId}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9000'}/api/v1/tasks/${taskId}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",

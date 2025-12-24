@@ -31,7 +31,9 @@ class NeonChatKitStore(Store[Dict[str, Any]]):
         Args:
             connection_string: PostgreSQL connection string for Neon database
         """
-        self.connection_string = connection_string
+        # Normalize connection string - asyncpg doesn't support the +asyncpg scheme
+        # that SQLAlchemy uses, so we need to remove it
+        self.connection_string = connection_string.replace("postgresql+asyncpg://", "postgresql://")
         self._pool: Optional[asyncpg.Pool] = None
 
     async def get_pool(self) -> asyncpg.Pool:

@@ -57,7 +57,7 @@ export function ChatInterface({ conversationId, className }: ChatInterfaceProps)
           throw new Error('Authentication failed. Please sign in.');
         }
 
-        const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9000';
 
         // Make request to our ChatKit endpoint
         const response = await fetch(`${baseURL}/api/v1/chatkit`, {
