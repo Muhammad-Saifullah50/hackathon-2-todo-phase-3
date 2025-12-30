@@ -55,50 +55,52 @@ export function ChatInterface({ conversationId, className }: ChatInterfaceProps)
     refetchOnVisibilityChange: true,
   });
 
+  // Custom fetch function that adds authentication headers
+  const authenticatedFetch: typeof fetch = async (input, init) => {
+    try {
+      // Get JWT token from auth client
+      const { data, error: authError } = await authClient.token();
+
+      // Add authorization header if token exists
+      const headers = new Headers(init?.headers);
+      if (data?.token && !authError) {
+        headers.set("Authorization", `Bearer ${data.token}`);
+      }
+
+      // Make the fetch request with auth headers
+      return fetch(input, {
+        ...init,
+        headers,
+        credentials: "include",
+      });
+    } catch (error) {
+      console.error("Failed to add auth to ChatKit request:", error);
+      // Fallback to regular fetch if auth fails
+      return fetch(input, init);
+    }
+  };
+
+  const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000";
+
   // Configure ChatKit with our backend endpoint
-  const { control, error } = useChatKit({
+  const { control } = useChatKit({
     api: {
-      async makeRequest(path, options) {
-        // Get authentication token
-        const { data, error: authError } = await authClient.token();
-
-        if (authError || !data?.token) {
-          throw new Error('Authentication failed. Please sign in.');
-        }
-
-        const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9000';
-
-        // Make request to our ChatKit endpoint
-        const response = await fetch(`${baseURL}/api/v1/chatkit`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${data.token}`,
-            ...options?.headers,
-          },
-          credentials: 'include',
-          body: options?.body,
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.detail || errorData.error || `HTTP error! status: ${response.status}`);
-        }
-
-        return response;
-      },
+      url: `${BACKEND_URL}/api/v1/chatkit`,
+      domainKey: "todomore-app", // Required: verify registered domain
+      fetch: authenticatedFetch,
     },
 
-    // Optional: Add conversation context
-    initialMessages: conversationId ? [] : undefined,
-
-    // Branding and customization
-    appearance: {
-      theme: 'auto', // Follow system theme
+    onError: ({ error }) => {
+      console.error('ChatKit error:', error);
+      toast({
+        title: "Chat Error",
+        description: error.message || "An error occurred with the chat service.",
+        variant: "destructive",
+      });
     },
   });
 
-  // Handle authentication check on mount
+  // Authentication check is handled by authenticatedFetch and isReady state
   useEffect(() => {
     async function checkAuth() {
       try {
@@ -126,18 +128,6 @@ export function ChatInterface({ conversationId, className }: ChatInterfaceProps)
 
     checkAuth();
   }, [toast]);
-
-  // Handle ChatKit errors
-  useEffect(() => {
-    if (error) {
-      console.error('ChatKit error:', error);
-      toast({
-        title: "Chat Error",
-        description: error.message || "An error occurred with the chat service.",
-        variant: "destructive",
-      });
-    }
-  }, [error, toast]);
 
   if (!isReady) {
     return (

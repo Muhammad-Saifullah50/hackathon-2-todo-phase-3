@@ -1,23 +1,13 @@
 {
   "version": 2,
-  "builds": [
+  "rewrites": [
     {
-      "src": "src/main.py",
-      "use": "@vercel/python",
-      "config": {
-        "buildCommand": "pip install --no-index --find-links=./wheels -r requirements.txt",
-        "pythonVersion": "3.12"
-      }
-    }
-  ],
-  "routes": [
-    {
-      "src": "/mcp/?(.*)",
-      "dest": "src/mcp_server/vercel_mcp.py"
+      "source": "/mcp/(.*)",
+      "destination": "src/mcp_server/vercel_mcp.py"
     },
     {
-      "src": "/(.*)",
-      "dest": "src/main.py"
+      "source": "/(.*)",
+      "destination": "src/main.py"
     }
   ],
   "functions": {

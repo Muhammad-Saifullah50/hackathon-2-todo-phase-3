@@ -14,6 +14,7 @@ import { ReactNode } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useTasks, useCreateTask, useUpdateTask, useDeleteTask, useToggleTask } from '@/hooks/useTasks';
 import * as taskApi from '@/lib/api/tasks';
+import { Task } from '@/lib/types/task';
 
 // Mock the API module
 vi.mock('@/lib/api/tasks');
@@ -27,7 +28,7 @@ vi.mock('@/hooks/use-toast', () => ({
 
 describe('useTasks Hook', () => {
   let queryClient: QueryClient;
-  let wrapper: ({ children }: { children: ReactNode }) => JSX.Element;
+  let wrapper: ({ children }: { children: ReactNode }) => React.ReactElement;
 
   beforeEach(() => {
     queryClient = new QueryClient({
@@ -47,17 +48,19 @@ describe('useTasks Hook', () => {
   describe('useTasks - Query Hook', () => {
     it('should fetch tasks successfully', async () => {
       const mockTasks = {
-        tasks: [
-          { id: 1, title: 'Task 1', status: 'pending', priority: 'medium' },
-          { id: 2, title: 'Task 2', status: 'completed', priority: 'high' },
-        ],
-        total: 2,
-        page: 1,
-        limit: 20,
-        total_pages: 1,
+        success: true,
+        message: 'Tasks fetched successfully',
+        data: {
+          tasks: [
+            { id: '1', title: 'Task 1', status: 'pending', priority: 'medium', user_id: 'user1', created_at: '', updated_at: '', completed_at: null, deleted_at: null, description: null, notes: null, manual_order: null },
+            { id: '2', title: 'Task 2', status: 'completed', priority: 'high', user_id: 'user1', created_at: '', updated_at: '', completed_at: null, deleted_at: null, description: null, notes: null, manual_order: null },
+          ] as Task[],
+          metadata: { total_pending: 1, total_completed: 1, total_active: 2, total_deleted: 0 },
+          pagination: { page: 1, limit: 20, total_items: 2, total_pages: 1, has_next: false, has_prev: false }
+        }
       };
 
-      vi.mocked(taskApi.getTasks).mockResolvedValue(mockTasks);
+      vi.mocked(taskApi.getTasks).mockResolvedValue(mockTasks as any);
 
       const { result } = renderHook(() => useTasks({}), { wrapper });
 
@@ -65,7 +68,7 @@ describe('useTasks Hook', () => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      expect(result.current.data).toEqual(mockTasks);
+      expect(result.current.data).toEqual(mockTasks.data);
       expect(taskApi.getTasks).toHaveBeenCalledWith({});
     });
 
@@ -83,14 +86,16 @@ describe('useTasks Hook', () => {
 
     it('should apply status filter', async () => {
       const mockTasks = {
-        tasks: [{ id: 1, title: 'Task 1', status: 'pending', priority: 'medium' }],
-        total: 1,
-        page: 1,
-        limit: 20,
-        total_pages: 1,
+        success: true,
+        message: 'Tasks fetched successfully',
+        data: {
+          tasks: [{ id: '1', title: 'Task 1', status: 'pending', priority: 'medium', user_id: 'user1', created_at: '', updated_at: '', completed_at: null, deleted_at: null, description: null, notes: null, manual_order: null }] as Task[],
+          metadata: { total_pending: 1, total_completed: 0, total_active: 1, total_deleted: 0 },
+          pagination: { page: 1, limit: 20, total_items: 1, total_pages: 1, has_next: false, has_prev: false }
+        }
       };
 
-      vi.mocked(taskApi.getTasks).mockResolvedValue(mockTasks);
+      vi.mocked(taskApi.getTasks).mockResolvedValue(mockTasks as any);
 
       const { result } = renderHook(() => useTasks({ status: 'pending' }), { wrapper });
 
@@ -103,14 +108,16 @@ describe('useTasks Hook', () => {
 
     it('should apply priority filter', async () => {
       const mockTasks = {
-        tasks: [{ id: 1, title: 'Urgent Task', status: 'pending', priority: 'high' }],
-        total: 1,
-        page: 1,
-        limit: 20,
-        total_pages: 1,
+        success: true,
+        message: 'Tasks fetched successfully',
+        data: {
+          tasks: [{ id: '1', title: 'Urgent Task', status: 'pending', priority: 'high', user_id: 'user1', created_at: '', updated_at: '', completed_at: null, deleted_at: null, description: null, notes: null, manual_order: null }] as Task[],
+          metadata: { total_pending: 1, total_completed: 0, total_active: 1, total_deleted: 0 },
+          pagination: { page: 1, limit: 20, total_items: 1, total_pages: 1, has_next: false, has_prev: false }
+        }
       };
 
-      vi.mocked(taskApi.getTasks).mockResolvedValue(mockTasks);
+      vi.mocked(taskApi.getTasks).mockResolvedValue(mockTasks as any);
 
       const { result } = renderHook(() => useTasks({ priority: 'high' }), { wrapper });
 
@@ -123,14 +130,16 @@ describe('useTasks Hook', () => {
 
     it('should handle pagination', async () => {
       const mockTasks = {
-        tasks: [],
-        total: 50,
-        page: 2,
-        limit: 20,
-        total_pages: 3,
+        success: true,
+        message: 'Tasks fetched successfully',
+        data: {
+          tasks: [] as Task[],
+          metadata: { total_pending: 25, total_completed: 25, total_active: 50, total_deleted: 0 },
+          pagination: { page: 2, limit: 20, total_items: 50, total_pages: 3, has_next: true, has_prev: true }
+        }
       };
 
-      vi.mocked(taskApi.getTasks).mockResolvedValue(mockTasks);
+      vi.mocked(taskApi.getTasks).mockResolvedValue(mockTasks as any);
 
       const { result } = renderHook(() => useTasks({ page: 2, limit: 20 }), { wrapper });
 
@@ -143,14 +152,16 @@ describe('useTasks Hook', () => {
 
     it('should apply search query', async () => {
       const mockTasks = {
-        tasks: [{ id: 1, title: 'Buy groceries', status: 'pending', priority: 'medium' }],
-        total: 1,
-        page: 1,
-        limit: 20,
-        total_pages: 1,
+        success: true,
+        message: 'Tasks fetched successfully',
+        data: {
+          tasks: [{ id: '1', title: 'Buy groceries', status: 'pending', priority: 'medium', user_id: 'user1', created_at: '', updated_at: '', completed_at: null, deleted_at: null, description: null, notes: null, manual_order: null }] as Task[],
+          metadata: { total_pending: 1, total_completed: 0, total_active: 1, total_deleted: 0 },
+          pagination: { page: 1, limit: 20, total_items: 1, total_pages: 1, has_next: false, has_prev: false }
+        }
       };
 
-      vi.mocked(taskApi.getTasks).mockResolvedValue(mockTasks);
+      vi.mocked(taskApi.getTasks).mockResolvedValue(mockTasks as any);
 
       const { result } = renderHook(() => useTasks({ search: 'groceries' }), { wrapper });
 
@@ -164,12 +175,16 @@ describe('useTasks Hook', () => {
 
   describe('useCreateTask - Mutation Hook', () => {
     it('should create task successfully', async () => {
-      const newTask = { id: 3, title: 'New Task', status: 'pending', priority: 'medium' };
-      vi.mocked(taskApi.createTask).mockResolvedValue(newTask);
+      const newTask = {
+        success: true,
+        message: 'Task created successfully',
+        data: { id: '3', title: 'New Task', status: 'pending', priority: 'medium', user_id: 'user1', created_at: '', updated_at: '', completed_at: null, deleted_at: null, description: null, notes: null, manual_order: null }
+      };
+      vi.mocked(taskApi.createTask).mockResolvedValue(newTask as any);
 
       const { result } = renderHook(() => useCreateTask(), { wrapper });
 
-      const taskData = { title: 'New Task', priority: 'medium' };
+      const taskData = { title: 'New Task', priority: 'medium' as const };
       result.current.mutate(taskData);
 
       await waitFor(() => {
@@ -177,7 +192,7 @@ describe('useTasks Hook', () => {
       });
 
       expect(taskApi.createTask).toHaveBeenCalledWith(taskData);
-      expect(result.current.data).toEqual(newTask);
+      expect(result.current.data).toEqual(newTask.data);
     });
 
     it('should handle create error', async () => {
@@ -185,7 +200,7 @@ describe('useTasks Hook', () => {
 
       const { result } = renderHook(() => useCreateTask(), { wrapper });
 
-      const taskData = { title: '', priority: 'medium' };
+      const taskData = { title: '', priority: 'medium' as const };
       result.current.mutate(taskData);
 
       await waitFor(() => {
@@ -196,14 +211,18 @@ describe('useTasks Hook', () => {
     });
 
     it('should invalidate queries on success', async () => {
-      const newTask = { id: 3, title: 'New Task', status: 'pending', priority: 'medium' };
-      vi.mocked(taskApi.createTask).mockResolvedValue(newTask);
+      const newTask = {
+        success: true,
+        message: 'Task created successfully',
+        data: { id: '3', title: 'New Task', status: 'pending', priority: 'medium', user_id: 'user1', created_at: '', updated_at: '', completed_at: null, deleted_at: null, description: null, notes: null, manual_order: null }
+      };
+      vi.mocked(taskApi.createTask).mockResolvedValue(newTask as any);
 
       const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
 
       const { result } = renderHook(() => useCreateTask(), { wrapper });
 
-      result.current.mutate({ title: 'New Task', priority: 'medium' });
+      result.current.mutate({ title: 'New Task', priority: 'medium' as const });
 
       await waitFor(() => {
         expect(result.current.isSuccess).toBe(true);
@@ -215,33 +234,42 @@ describe('useTasks Hook', () => {
 
   describe('useUpdateTask - Mutation Hook', () => {
     it('should update task successfully', async () => {
-      const updatedTask = { id: 1, title: 'Updated Task', status: 'pending', priority: 'high' };
-      vi.mocked(taskApi.updateTask).mockResolvedValue(updatedTask);
+      const updatedTask = {
+        success: true,
+        message: 'Task updated successfully',
+        data: { id: '1', title: 'Updated Task', status: 'pending', priority: 'high', user_id: 'user1', created_at: '', updated_at: '', completed_at: null, deleted_at: null, description: null, notes: null, manual_order: null }
+      };
+      vi.mocked(taskApi.updateTask).mockResolvedValue(updatedTask as any);
 
       const { result } = renderHook(() => useUpdateTask(), { wrapper });
 
-      result.current.mutate({ id: 1, title: 'Updated Task' });
+      result.current.mutate({ taskId: '1', data: { title: 'Updated Task' } });
 
       await waitFor(() => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      expect(taskApi.updateTask).toHaveBeenCalledWith(1, { title: 'Updated Task' });
+      expect(taskApi.updateTask).toHaveBeenCalledWith('1', { title: 'Updated Task' });
     });
 
     it('should perform optimistic update', async () => {
-      const updatedTask = { id: 1, title: 'Updated Task', status: 'pending', priority: 'high' };
-      vi.mocked(taskApi.updateTask).mockResolvedValue(updatedTask);
+      const updatedTask = {
+        success: true,
+        message: 'Task updated successfully',
+        data: { id: '1', title: 'Updated Task', status: 'pending', priority: 'high', user_id: 'user1', created_at: '', updated_at: '', completed_at: null, deleted_at: null, description: null, notes: null, manual_order: null }
+      };
+      vi.mocked(taskApi.updateTask).mockResolvedValue(updatedTask as any);
 
       // Set initial query data
       queryClient.setQueryData(['tasks'], {
-        tasks: [{ id: 1, title: 'Original Task', status: 'pending', priority: 'medium' }],
-        total: 1,
+        tasks: [{ id: '1', title: 'Original Task', status: 'pending', priority: 'medium', user_id: 'user1', created_at: '', updated_at: '', completed_at: null, deleted_at: null, description: null, notes: null, manual_order: null }],
+        metadata: { total_pending: 1, total_completed: 0, total_active: 1, total_deleted: 0 },
+        pagination: { page: 1, limit: 20, total_items: 1, total_pages: 1, has_next: false, has_prev: false }
       });
 
       const { result } = renderHook(() => useUpdateTask(), { wrapper });
 
-      result.current.mutate({ id: 1, title: 'Updated Task' });
+      result.current.mutate({ taskId: '1', data: { title: 'Updated Task' } });
 
       // Query data should be immediately updated
       const queryData = queryClient.getQueryData(['tasks']) as any;
@@ -257,14 +285,15 @@ describe('useTasks Hook', () => {
 
       // Set initial query data
       const initialData = {
-        tasks: [{ id: 1, title: 'Original Task', status: 'pending', priority: 'medium' }],
-        total: 1,
+        tasks: [{ id: '1', title: 'Original Task', status: 'pending', priority: 'medium', user_id: 'user1', created_at: '', updated_at: '', completed_at: null, deleted_at: null, description: null, notes: null, manual_order: null }],
+        metadata: { total_pending: 1, total_completed: 0, total_active: 1, total_deleted: 0 },
+        pagination: { page: 1, limit: 20, total_items: 1, total_pages: 1, has_next: false, has_prev: false }
       };
       queryClient.setQueryData(['tasks'], initialData);
 
       const { result } = renderHook(() => useUpdateTask(), { wrapper });
 
-      result.current.mutate({ id: 1, title: 'Updated Task' });
+      result.current.mutate({ taskId: '1', data: { title: 'Updated Task' } });
 
       await waitFor(() => {
         expect(result.current.isError).toBe(true);
@@ -278,40 +307,52 @@ describe('useTasks Hook', () => {
 
   describe('useToggleTask - Mutation Hook', () => {
     it('should toggle task from pending to completed', async () => {
-      const toggledTask = { id: 1, title: 'Task', status: 'completed', priority: 'medium' };
-      vi.mocked(taskApi.toggleTask).mockResolvedValue(toggledTask);
+      const toggledTask = {
+        success: true,
+        message: 'Task toggled successfully',
+        data: { id: '1', title: 'Task', status: 'completed', priority: 'medium', user_id: 'user1', created_at: '', updated_at: '', completed_at: null, deleted_at: null, description: null, notes: null, manual_order: null }
+      };
+      vi.mocked(taskApi.toggleTask).mockResolvedValue(toggledTask as any);
 
       const { result } = renderHook(() => useToggleTask(), { wrapper });
 
-      result.current.mutate(1);
+      result.current.mutate('1');
 
       await waitFor(() => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      expect(taskApi.toggleTask).toHaveBeenCalledWith(1);
+      expect(taskApi.toggleTask).toHaveBeenCalledWith('1');
     });
 
     it('should update task counts optimistically', async () => {
-      const toggledTask = { id: 1, title: 'Task', status: 'completed', priority: 'medium' };
-      vi.mocked(taskApi.toggleTask).mockResolvedValue(toggledTask);
+      const toggledTask = {
+        success: true,
+        message: 'Task toggled successfully',
+        data: { id: '1', title: 'Task', status: 'completed', priority: 'medium', user_id: 'user1', created_at: '', updated_at: '', completed_at: null, deleted_at: null, description: null, notes: null, manual_order: null }
+      };
+      vi.mocked(taskApi.toggleTask).mockResolvedValue(toggledTask as any);
 
       // Set initial query data with counts
       queryClient.setQueryData(['tasks'], {
-        tasks: [{ id: 1, title: 'Task', status: 'pending', priority: 'medium' }],
-        total: 1,
-        total_pending: 1,
-        total_completed: 0,
+        tasks: [{ id: '1', title: 'Task', status: 'pending', priority: 'medium', user_id: 'user1', created_at: '', updated_at: '', completed_at: null, deleted_at: null, description: null, notes: null, manual_order: null }],
+        metadata: {
+          total_pending: 1,
+          total_completed: 0,
+          total_active: 1,
+          total_deleted: 0
+        },
+        pagination: { page: 1, limit: 20, total_items: 1, total_pages: 1, has_next: false, has_prev: false }
       });
 
       const { result } = renderHook(() => useToggleTask(), { wrapper });
 
-      result.current.mutate(1);
+      result.current.mutate('1');
 
       // Counts should be immediately updated
       const queryData = queryClient.getQueryData(['tasks']) as any;
-      expect(queryData.total_pending).toBe(0);
-      expect(queryData.total_completed).toBe(1);
+      expect(queryData.metadata.total_pending).toBe(0);
+      expect(queryData.metadata.total_completed).toBe(1);
 
       await waitFor(() => {
         expect(result.current.isSuccess).toBe(true);
@@ -321,39 +362,50 @@ describe('useTasks Hook', () => {
 
   describe('useDeleteTask - Mutation Hook', () => {
     it('should delete task successfully', async () => {
-      vi.mocked(taskApi.deleteTask).mockResolvedValue(undefined);
+      const deletedTaskResult = {
+        success: true,
+        message: 'Task deleted successfully',
+        data: { id: '1', title: 'Task 1', status: 'pending', priority: 'medium', user_id: 'user1', created_at: '', updated_at: '', completed_at: null, deleted_at: null, description: null, notes: null, manual_order: null }
+      };
+      vi.mocked(taskApi.deleteTask).mockResolvedValue(deletedTaskResult as any);
 
       const { result } = renderHook(() => useDeleteTask(), { wrapper });
 
-      result.current.mutate(1);
+      result.current.mutate('1');
 
       await waitFor(() => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      expect(taskApi.deleteTask).toHaveBeenCalledWith(1);
+      expect(taskApi.deleteTask).toHaveBeenCalledWith('1');
     });
 
     it('should remove task optimistically', async () => {
-      vi.mocked(taskApi.deleteTask).mockResolvedValue(undefined);
+      const deletedTaskResult = {
+        success: true,
+        message: 'Task deleted successfully',
+        data: { id: '1', title: 'Task 1', status: 'pending', priority: 'medium', user_id: 'user1', created_at: '', updated_at: '', completed_at: null, deleted_at: null, description: null, notes: null, manual_order: null }
+      };
+      vi.mocked(taskApi.deleteTask).mockResolvedValue(deletedTaskResult as any);
 
       // Set initial query data
       queryClient.setQueryData(['tasks'], {
         tasks: [
-          { id: 1, title: 'Task 1', status: 'pending', priority: 'medium' },
-          { id: 2, title: 'Task 2', status: 'pending', priority: 'low' },
+          { id: '1', title: 'Task 1', status: 'pending', priority: 'medium', user_id: 'user1', created_at: '', updated_at: '', completed_at: null, deleted_at: null, description: null, notes: null, manual_order: null },
+          { id: '2', title: 'Task 2', status: 'pending', priority: 'low', user_id: 'user1', created_at: '', updated_at: '', completed_at: null, deleted_at: null, description: null, notes: null, manual_order: null },
         ],
-        total: 2,
+        metadata: { total_pending: 2, total_completed: 0, total_active: 2, total_deleted: 0 },
+        pagination: { page: 1, limit: 20, total_items: 2, total_pages: 1, has_next: false, has_prev: false }
       });
 
       const { result } = renderHook(() => useDeleteTask(), { wrapper });
 
-      result.current.mutate(1);
+      result.current.mutate('1');
 
       // Task should be immediately removed
       const queryData = queryClient.getQueryData(['tasks']) as any;
       expect(queryData.tasks.length).toBe(1);
-      expect(queryData.tasks[0].id).toBe(2);
+      expect(queryData.tasks[0].id).toBe('2');
 
       await waitFor(() => {
         expect(result.current.isSuccess).toBe(true);
@@ -365,14 +417,15 @@ describe('useTasks Hook', () => {
 
       // Set initial query data
       const initialData = {
-        tasks: [{ id: 1, title: 'Task 1', status: 'pending', priority: 'medium' }],
-        total: 1,
+        tasks: [{ id: '1', title: 'Task 1', status: 'pending', priority: 'medium', user_id: 'user1', created_at: '', updated_at: '', completed_at: null, deleted_at: null, description: null, notes: null, manual_order: null }],
+        metadata: { total_pending: 1, total_completed: 0, total_active: 1, total_deleted: 0 },
+        pagination: { page: 1, limit: 20, total_items: 1, total_pages: 1, has_next: false, has_prev: false }
       };
       queryClient.setQueryData(['tasks'], initialData);
 
       const { result } = renderHook(() => useDeleteTask(), { wrapper });
 
-      result.current.mutate(1);
+      result.current.mutate('1');
 
       await waitFor(() => {
         expect(result.current.isError).toBe(true);
@@ -381,7 +434,7 @@ describe('useTasks Hook', () => {
       // Task should be restored
       const queryData = queryClient.getQueryData(['tasks']) as any;
       expect(queryData.tasks.length).toBe(1);
-      expect(queryData.tasks[0].id).toBe(1);
+      expect(queryData.tasks[0].id).toBe('1');
     });
   });
 });

@@ -8,14 +8,16 @@ export const metadata: Metadata = {
 
 export default function CalendarPage() {
   return (
-    <div className="max-w-7xl mx-auto py-6 w-full">
-      <div className="mb-6">
+    <div className="max-w-7xl mx-auto px-4 pt-6 w-full h-[calc(100vh-4rem)] flex flex-col">
+      <div className="mb-6 shrink-0">
         <h1 className="text-3xl font-bold tracking-tight">Calendar</h1>
         <p className="text-muted-foreground mt-2">
           View and manage your tasks by due date
         </p>
       </div>
-      <CalendarView />
+      <div className="flex-1 overflow-y-auto min-h-0 pb-6 pr-1">
+        <CalendarView />
+      </div>
     </div>
   );
 }
