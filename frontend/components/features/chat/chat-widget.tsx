@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { ChatKit, useChatKit } from "@openai/chatkit-react";
 import { X, MessageCircle } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
+import { useChatTaskSync } from "@/hooks/useChatTaskSync";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:9000";
 const DOMAIN_KEY = process.env.NEXT_PUBLIC_CHATKIT_DOMAIN_KEY || "todoly-app";
@@ -11,6 +12,12 @@ const DOMAIN_KEY = process.env.NEXT_PUBLIC_CHATKIT_DOMAIN_KEY || "todoly-app";
 export function ChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
+
+  // Automatically sync task data when chat is open and chatbot makes changes
+  useChatTaskSync({
+    refetchOnWindowFocus: true,
+    refetchOnVisibilityChange: true,
+  });
 
   // Custom fetch function that adds authentication headers
   const authenticatedFetch: typeof fetch = async (input, init) => {

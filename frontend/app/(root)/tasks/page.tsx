@@ -15,8 +15,8 @@ export const metadata: Metadata = {
 
 export default function TasksPage() {
   return (
-    <div className="max-w-7xl mx-auto px-4 pt-6 w-full">
-      <div className="flex items-center justify-between mb-6">
+    <div className="max-w-7xl mx-auto px-4 pt-6 w-full h-[calc(100vh-4rem)] flex flex-col">
+      <div className="flex items-center justify-between mb-4 shrink-0">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">My Tasks</h1>
           <p className="text-muted-foreground mt-1">
@@ -28,8 +28,10 @@ export default function TasksPage() {
         </div>
       </div>
 
-      {/* Task List with filters, sorting, and pagination */}
-      <TaskList />
+      {/* Task List with fixed height and scrolling */}
+      <div className="flex-1 overflow-y-auto">
+        <TaskList />
+      </div>
     </div>
   );
 }

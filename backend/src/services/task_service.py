@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.models.task import Task, TaskCreate, TaskPriority, TaskResponse, TaskStatus
+from src.models.tag import Tag
 from src.models.task_tag import TaskTag
 from src.schemas.task_schemas import PaginationInfo, TaskListResponse, TaskMetadata
 
@@ -62,6 +63,27 @@ class TaskService:
         await self.session.refresh(task)
 
         return task
+
+    async def get_task(self, task_id: str, user_id: str) -> Task | None:
+        """Get a single task by ID.
+
+        Args:
+            task_id: The ID of the task to retrieve.
+            user_id: ID of the authenticated user.
+
+        Returns:
+            Task instance if found, None otherwise.
+        """
+        from src.models.task import Task
+        from sqlalchemy.orm import selectinload
+
+        query = (
+            select(Task)
+            .options(selectinload(Task.task_tags).selectinload(TaskTag.tag))
+            .where(Task.id == task_id, Task.user_id == user_id)
+        )
+        result = await self.session.execute(query)
+        return result.scalar_one_or_none()
 
     async def get_tasks(
         self,
@@ -303,6 +325,7 @@ class TaskService:
         due_date: datetime | None = None,
         notes: str | None = None,
         manual_order: int | None = None,
+        priority: TaskPriority | None = None,
     ) -> Task:
         """Update a task's fields.
 
@@ -314,6 +337,7 @@ class TaskService:
             due_date: New due date (optional).
             notes: New notes (optional).
             manual_order: New manual order (optional).
+            priority: New priority level (optional).
 
         Returns:
             Updated Task instance.
@@ -325,7 +349,7 @@ class TaskService:
         # Validate at least one field is provided
         if all(
             field is None
-            for field in [title, description, due_date, notes, manual_order]
+            for field in [title, description, due_date, notes, manual_order, priority]
         ):
             raise ValueError("At least one field must be provided")
 
@@ -366,6 +390,10 @@ class TaskService:
 
         if manual_order is not None and manual_order != task.manual_order:
             task.manual_order = manual_order
+            has_changes = True
+
+        if priority is not None and priority != task.priority:
+            task.priority = priority
             has_changes = True
 
         if not has_changes:
@@ -439,6 +467,37 @@ class TaskService:
                 pass
 
         return task
+
+    async def complete_task(self, task_id: str, user_id: str) -> Task:
+        """Mark a task as complete.
+
+        Args:
+            task_id: UUID of the task to complete.
+            user_id: ID of the authenticated user.
+
+        Returns:
+            Updated Task instance with COMPLETED status.
+
+        Raises:
+            ValueError: If task not found.
+        """
+        # Just use toggle_task_status which handles the logic
+        return await self.toggle_task_status(task_id, user_id)
+
+    async def delete_task(self, task_id: str, user_id: str) -> Task:
+        """Soft delete a task.
+
+        Args:
+            task_id: UUID of the task to delete.
+            user_id: ID of the authenticated user.
+
+        Returns:
+            Deleted Task instance.
+
+        Raises:
+            ValueError: If task not found.
+        """
+        return await self.soft_delete_task(task_id, user_id)
 
     async def bulk_toggle_status(
         self, task_ids: list[str], target_status: TaskStatus, user_id: str

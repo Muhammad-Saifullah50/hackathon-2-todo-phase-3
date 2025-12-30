@@ -62,7 +62,7 @@ export function SortableTaskCard({
       className={cn(
         "flex items-start gap-2 group touch-manipulation",
         isDragging && "shadow-lg",
-        isSelected && "ring-2 ring-primary ring-offset-2 rounded-lg"
+        isSelected && "rounded-lg"
       )}
       onClick={onSelect}
     >

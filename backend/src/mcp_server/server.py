@@ -5,13 +5,9 @@ task management operations as tools that can be invoked by AI agents.
 """
 
 import os
-from contextlib import asynccontextmanager
 from pathlib import Path
 
 from dotenv import load_dotenv
-from mcp.server.fastmcp import FastMCP
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
 
 # Load environment variables from .env file
 # Look for .env in backend directory (parent of src)
@@ -22,77 +18,23 @@ if env_path.exists():
 else:
     print(f"⚠️  .env file not found at {env_path}, using system environment variables")
 
-# Get database URL from environment
+# Get database URL from environment (for validation only)
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL environment variable not set")
 
-# Convert postgresql:// to postgresql+asyncpg:// for async support
-if DATABASE_URL.startswith("postgresql://"):
-    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
-
-
-# Database connection manager
-
-class Database:
-    """Database connection manager for MCP server."""
-
-    def __init__(self):
-        self.engine = None
-        self.session_factory = None
-
-    async def connect(self):
-        """Initialize database connection."""
-        self.engine = create_async_engine(
-            DATABASE_URL,
-            echo=False,
-            pool_pre_ping=True,
-        )
-        self.session_factory = sessionmaker(
-            self.engine,
-            class_=AsyncSession,
-            expire_on_commit=False,
-        )
-
-    async def disconnect(self):
-        """Close database connection."""
-        if self.engine:
-            await self.engine.dispose()
-
-    def get_session(self) -> AsyncSession:
-        """Get a new database session."""
-        if not self.session_factory:
-            raise RuntimeError("Database not connected")
-        return self.session_factory()
-
-
-# Create database instance
-db = Database()
-
-
-@asynccontextmanager
-async def lifespan():
-    """Manage database lifecycle."""
-    await db.connect()
-    yield
-    await db.disconnect()
-
-
-# Create MCP server with lifespan
-mcp = FastMCP(
-    "Task Management Server",
-    json_response=True,
-    lifespan=lifespan,
-)
+# Import mcp instance from the dedicated module
+from src.mcp_server.mcp_instance import mcp  # noqa: E402
 
 # Import tools to register them with the MCP server
-# This must be after mcp is created so tools can import it
-# from src.mcp_server.tools import task_tools  # noqa: E402, F401
+# This import triggers the @mcp.tool() decorators
+from src.mcp_server.tools import task_tools  # noqa: E402, F401
 
 if __name__ == "__main__":
-    # Run with HTTP transport (supports streamable-http)
-    # Server will be available at http://0.0.0.0:8000/mcp
-    mcp.run(
-        transport="streamable-http",
-    
-    )
+    # Run with Streamable HTTP transport using FastMCP's built-in runner
+    # This is the correct way according to MCP SDK documentation
+    print(f"🚀 Starting MCP Server on http://{mcp.settings.host}:{mcp.settings.port}")
+
+    # Use mcp.run() with transport="streamable-http"
+    # This properly initializes the server and exposes tools via HTTP
+    mcp.run(transport="streamable-http")

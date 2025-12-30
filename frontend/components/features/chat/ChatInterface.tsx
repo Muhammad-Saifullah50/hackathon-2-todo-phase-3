@@ -12,6 +12,7 @@ import { authClient } from '@/lib/auth-client';
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
+import { useChatTaskSync } from '@/hooks/useChatTaskSync';
 
 export interface ChatInterfaceProps {
   /**
@@ -45,6 +46,14 @@ export interface ChatInterfaceProps {
 export function ChatInterface({ conversationId, className }: ChatInterfaceProps) {
   const { toast } = useToast();
   const [isReady, setIsReady] = useState(false);
+
+  // Automatically sync task data when chatbot makes changes
+  // Uses on-demand revalidation via router.refresh()
+  // No polling - Server Actions handle cache invalidation
+  useChatTaskSync({
+    refetchOnWindowFocus: true,
+    refetchOnVisibilityChange: true,
+  });
 
   // Configure ChatKit with our backend endpoint
   const { control, error } = useChatKit({

@@ -77,6 +77,17 @@ async def chatkit_endpoint(
             extra={"user_id": user_id},
         )
 
+        # Read request body early to catch client disconnects
+        try:
+            body = await request.body()
+        except Exception as read_error:
+            logger.warning(f"Failed to read request body (client may have disconnected): {read_error}")
+            return Response(
+                content='{"error": "Client disconnected"}',
+                media_type="application/json",
+                status_code=499,  # Client Closed Request
+            )
+
         # Build context with user_id for authenticated users
         context = {"user_id": user_id}
 
@@ -84,7 +95,7 @@ async def chatkit_endpoint(
         server = get_chatkit_server()
 
         # Process the request using the ChatKit server
-        result = await server.process(await request.body(), context)
+        result = await server.process(body, context)
         logger.info(f"ChatKit processing complete, result type: {type(result).__name__}")
 
         # Return appropriate response type

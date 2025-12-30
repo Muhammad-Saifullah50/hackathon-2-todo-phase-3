@@ -5,18 +5,20 @@
 
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import {
-  createTask,
   getTasks,
-  updateTask,
-  toggleTask,
-  bulkToggleTasks,
-  deleteTask,
-  bulkDeleteTasks,
   getTrash,
-  restoreTask,
-  permanentDeleteTask,
-  reorderTasks,
 } from '@/lib/api/tasks';
+import {
+  createTaskAction,
+  updateTaskAction,
+  toggleTaskAction,
+  bulkToggleTasksAction,
+  deleteTaskAction,
+  bulkDeleteTasksAction,
+  reorderTasksAction,
+  restoreTaskAction,
+  permanentDeleteTaskAction,
+} from '@/app/actions/tasks';
 import type { CreateTaskRequest, Task, TaskQueryParams, TaskStatus } from '@/lib/types/task';
 import { useToast } from './use-toast';
 
@@ -40,8 +42,10 @@ export function useTasks(params: TaskQueryParams = {}) {
   return useQuery({
     queryKey: tasksKeys.list(params),
     queryFn: () => getTasks(params),
-    staleTime: 30000, // Consider data fresh for 30 seconds
+    staleTime: 0, // Always consider data stale so invalidateQueries triggers refetch
     gcTime: 5 * 60 * 1000, // Keep unused data in cache for 5 minutes
+    refetchOnWindowFocus: true, // Refetch when user returns to window
+    refetchOnMount: 'always', // ALWAYS refetch on component mount - never use stale data
   });
 }
 
@@ -53,7 +57,7 @@ export function useCreateTask() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: createTask,
+    mutationFn: createTaskAction,
 
     // Optimistic update: show task immediately
     onMutate: async (newTask: CreateTaskRequest) => {
@@ -110,11 +114,10 @@ export function useCreateTask() {
       console.error('Failed to create task:', error);
     },
 
-    // Refetch on success to get server data
-    onSuccess: () => {
-      // Invalidate and refetch all task queries
+    // After server action completes, Next.js revalidation handles cache refresh
+    // We just invalidate React Query cache as a fallback
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tasksKeys.all });
-      // Invalidate analytics to update dashboard stats
       queryClient.invalidateQueries({ queryKey: ['analytics'] });
     },
   });
@@ -142,7 +145,7 @@ export function useUpdateTask() {
         notes?: string | null;
         manual_order?: number | null;
       };
-    }) => updateTask(taskId, data),
+    }) => updateTaskAction(taskId, data),
 
     // Optimistic update: show changes immediately
     onMutate: async ({ taskId, data }) => {
@@ -212,14 +215,14 @@ export function useUpdateTask() {
       console.error("Failed to update task:", error);
     },
 
-    // Refetch on success
-    onSuccess: () => {
-      // Invalidate and refetch all task queries
+    // After server action completes, Next.js revalidation handles cache refresh
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tasksKeys.all });
-      // Invalidate analytics to update dashboard stats
       queryClient.invalidateQueries({ queryKey: ['analytics'] });
+    },
 
-      // Show success toast
+    // Show success toast on success
+    onSuccess: () => {
       toast({
         title: "Task updated",
         description: "Your task has been updated successfully.",
@@ -236,7 +239,7 @@ export function useToggleTask() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: (taskId: string) => toggleTask(taskId),
+    mutationFn: (taskId: string) => toggleTaskAction(taskId),
 
     // Optimistic update: flip status immediately
     onMutate: async (taskId) => {
@@ -299,9 +302,9 @@ export function useToggleTask() {
       });
     },
 
-    onSuccess: () => {
+    // After server action completes, Next.js revalidation handles cache refresh
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tasksKeys.all });
-      // Invalidate analytics to update dashboard stats
       queryClient.invalidateQueries({ queryKey: ['analytics'] });
     },
   });
@@ -316,7 +319,7 @@ export function useBulkToggle() {
 
   return useMutation({
     mutationFn: ({ taskIds, targetStatus }: { taskIds: string[]; targetStatus: TaskStatus }) =>
-      bulkToggleTasks(taskIds, targetStatus),
+      bulkToggleTasksAction(taskIds, targetStatus),
 
     onMutate: async ({ taskIds, targetStatus }) => {
       await queryClient.cancelQueries({ queryKey: tasksKeys.all });
@@ -367,11 +370,13 @@ export function useBulkToggle() {
       });
     },
 
-    onSuccess: (data) => {
+    // After server action completes, Next.js revalidation handles cache refresh
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tasksKeys.all });
-      // Invalidate analytics to update dashboard stats
       queryClient.invalidateQueries({ queryKey: ['analytics'] });
+    },
 
+    onSuccess: (data) => {
       const count = data.data?.updated_count || 0;
       toast({
         title: "Tasks updated",
@@ -389,7 +394,7 @@ export function useDeleteTask() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: (taskId: string) => deleteTask(taskId),
+    mutationFn: (taskId: string) => deleteTaskAction(taskId),
 
     // Optimistic update: remove task immediately
     onMutate: async (taskId) => {
@@ -435,11 +440,13 @@ export function useDeleteTask() {
       });
     },
 
-    onSuccess: () => {
+    // After server action completes, Next.js revalidation handles cache refresh
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tasksKeys.all });
-      // Invalidate analytics to update dashboard stats
       queryClient.invalidateQueries({ queryKey: ['analytics'] });
+    },
 
+    onSuccess: () => {
       toast({
         title: "Task moved to trash",
         description: "You can restore it from the trash view.",
@@ -456,7 +463,7 @@ export function useBulkDelete() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: (taskIds: string[]) => bulkDeleteTasks(taskIds),
+    mutationFn: (taskIds: string[]) => bulkDeleteTasksAction(taskIds),
 
     onMutate: async (taskIds) => {
       await queryClient.cancelQueries({ queryKey: tasksKeys.all });
@@ -495,11 +502,13 @@ export function useBulkDelete() {
       });
     },
 
-    onSuccess: (data) => {
+    // After server action completes, Next.js revalidation handles cache refresh
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tasksKeys.all });
-      // Invalidate analytics to update dashboard stats
       queryClient.invalidateQueries({ queryKey: ['analytics'] });
+    },
 
+    onSuccess: (data) => {
       const count = data.data?.updated_count || 0;
       toast({
         title: "Tasks moved to trash",
@@ -529,7 +538,7 @@ export function useRestoreTask() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: (taskId: string) => restoreTask(taskId),
+    mutationFn: (taskId: string) => restoreTaskAction(taskId),
 
     onMutate: async (taskId) => {
       await queryClient.cancelQueries({ queryKey: tasksKeys.all });
@@ -566,11 +575,13 @@ export function useRestoreTask() {
       });
     },
 
-    onSuccess: () => {
+    // After server action completes, Next.js revalidation handles cache refresh
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tasksKeys.all });
-      // Invalidate analytics to update dashboard stats
       queryClient.invalidateQueries({ queryKey: ['analytics'] });
+    },
 
+    onSuccess: () => {
       toast({
         title: "Task restored",
         description: "The task has been restored successfully.",
@@ -587,7 +598,7 @@ export function usePermanentDelete() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: (taskId: string) => permanentDeleteTask(taskId),
+    mutationFn: (taskId: string) => permanentDeleteTaskAction(taskId),
 
     onMutate: async (taskId) => {
       await queryClient.cancelQueries({ queryKey: tasksKeys.all });
@@ -624,11 +635,13 @@ export function usePermanentDelete() {
       });
     },
 
-    onSuccess: () => {
+    // After server action completes, Next.js revalidation handles cache refresh
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tasksKeys.all });
-      // Invalidate analytics to update dashboard stats
       queryClient.invalidateQueries({ queryKey: ['analytics'] });
+    },
 
+    onSuccess: () => {
       toast({
         title: "Task permanently deleted",
         description: "This action cannot be undone.",
@@ -646,7 +659,7 @@ export function useReorderTasks() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: (taskIds: string[]) => reorderTasks(taskIds),
+    mutationFn: (taskIds: string[]) => reorderTasksAction(taskIds),
 
     // Optimistic update: reorder tasks immediately
     onMutate: async (taskIds) => {
@@ -701,7 +714,8 @@ export function useReorderTasks() {
       });
     },
 
-    onSuccess: () => {
+    // After server action completes, Next.js revalidation handles cache refresh
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tasksKeys.all });
     },
   });

@@ -10,6 +10,13 @@ class Settings(BaseSettings):
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]
     LOG_LEVEL: str = "INFO"
     ENVIRONMENT: str = "development"
+    # Frontend URL for revalidation calls
+    FRONTEND_URL: str = "http://localhost:3000"
+    # MCP Server Configuration
+    MCP_SERVER_URL: str = "http://localhost:8000/mcp"
+    MCP_SERVER_TOKEN: str = "default-mcp-token"
+    # Alternative: Use root path (MCP app runs at /mcp internally)
+    MCP_SERVER_ROOT_URL: str = "http://localhost:8000"
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod

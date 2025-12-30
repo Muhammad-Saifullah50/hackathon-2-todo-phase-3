@@ -266,13 +266,13 @@ class NeonChatKitStore(Store[Dict[str, Any]]):
                 if not cursor_row:
                     after = None
 
-            # Fetch items with pagination
+            # Fetch items with pagination, excluding workflow items
             if after and cursor_row:
                 if order == "desc":
                     query = """
                         SELECT id, thread_id, type, role, content, created_at, n_tokens
                         FROM chat_thread_items
-                        WHERE thread_id = $1 AND created_at < $2
+                        WHERE thread_id = $1 AND created_at < $2 AND type != 'workflow'
                         ORDER BY created_at DESC
                         LIMIT $3
                     """
@@ -281,7 +281,7 @@ class NeonChatKitStore(Store[Dict[str, Any]]):
                     query = """
                         SELECT id, thread_id, type, role, content, created_at, n_tokens
                         FROM chat_thread_items
-                        WHERE thread_id = $1 AND created_at > $2
+                        WHERE thread_id = $1 AND created_at > $2 AND type != 'workflow'
                         ORDER BY created_at ASC
                         LIMIT $3
                     """
@@ -290,7 +290,7 @@ class NeonChatKitStore(Store[Dict[str, Any]]):
                 query = f"""
                     SELECT id, thread_id, type, role, content, created_at, n_tokens
                     FROM chat_thread_items
-                    WHERE thread_id = $1
+                    WHERE thread_id = $1 AND type != 'workflow'
                     ORDER BY created_at {'DESC' if order == 'desc' else 'ASC'}
                     LIMIT $2
                 """

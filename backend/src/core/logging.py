@@ -169,9 +169,10 @@ def log_tool_invocation(
     """
     logger = logging.getLogger(__name__)
 
+    # Use "tool_args" instead of "args" to avoid conflict with LogRecord.args
     log_data = {
         "tool_name": tool_name,
-        "args": args,
+        "tool_args": args,
         "request_id": get_request_id(),
     }
 

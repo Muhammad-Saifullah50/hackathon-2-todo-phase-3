@@ -9,6 +9,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.api.routes import health, recurring, search, subtasks, tags, tasks, templates, user
 from src.api.routes.chatkit import router as chatkit_router
 from src.config import settings
+from src.core import setup_logging
+
+# Initialize logging
+setup_logging(level=settings.LOG_LEVEL, json_logs=False)
 
 
 @asynccontextmanager
