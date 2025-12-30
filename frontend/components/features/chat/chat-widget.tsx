@@ -7,7 +7,7 @@ import { authClient } from "@/lib/auth-client";
 import { useChatTaskSync } from "@/hooks/useChatTaskSync";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:9000";
-const DOMAIN_KEY = process.env.NEXT_PUBLIC_CHATKIT_DOMAIN_KEY || "todoly-app";
+const DOMAIN_KEY = process.env.NEXT_PUBLIC_CHATKIT_DOMAIN_KEY || "todomore-app";
 
 export function ChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
@@ -83,7 +83,7 @@ export function ChatWidget() {
       showRename: true,
     },
     startScreen: {
-      greeting: "Hi! I'm your Task Management Assistant.",
+      greeting: "Hi! I'm your TodoBot - Task Management Assistant.",
       prompts: [
         {
           label: "Create Task",

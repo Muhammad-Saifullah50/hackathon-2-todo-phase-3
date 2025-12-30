@@ -1,4 +1,4 @@
-# Todoly MCP Server
+# TodoMore MCP Server
 
 FastMCP server for exposing task management tools via Model Context Protocol (MCP).
 
@@ -159,7 +159,7 @@ async def create_agent():
 
     # Create agent with MCP tools
     agent = Agent(
-        name="TaskBot",
+        name="TodoBot",
         instructions="You are a task management assistant.",
         mcp_servers=[mcp_server],
         model_settings=ModelSettings(tool_choice="auto"),

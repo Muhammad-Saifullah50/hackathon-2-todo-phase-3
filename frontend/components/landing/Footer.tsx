@@ -46,7 +46,7 @@ export function Footer() {
       },
       {
         name: "Email",
-        href: "mailto:hello@todoly.com",
+        href: "mailto:hello@todomore.com",
         icon: Mail,
       },
     ],
@@ -59,10 +59,10 @@ export function Footer() {
           {/* Brand Section */}
           <div className="col-span-1 md:col-span-1">
             <Link href="/" className="flex items-center space-x-2 mb-4">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-                <span className="text-white font-bold text-lg">T</span>
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 via-cyan-500 to-teal-500 flex items-center justify-center">
+                <span className="text-white font-bold text-sm">TM</span>
               </div>
-              <span className="text-xl font-bold">Todoly</span>
+              <span className="text-xl font-bold">TodoMore</span>
             </Link>
             <p className="text-sm text-muted-foreground mb-4">
               Beautiful task management for individuals and teams. Stay organized, boost
@@ -143,7 +143,7 @@ export function Footer() {
         {/* Bottom Bar */}
         <div className="pt-8 border-t flex flex-col sm:flex-row justify-between items-center gap-4">
           <p className="text-sm text-muted-foreground">
-            © {currentYear} Todoly. All rights reserved.
+            © {currentYear} TodoMore. All rights reserved.
           </p>
           <p className="text-sm text-muted-foreground">
             Built with ❤️ using Next.js & FastAPI

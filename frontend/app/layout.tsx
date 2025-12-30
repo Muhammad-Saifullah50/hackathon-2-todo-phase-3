@@ -8,33 +8,47 @@ import { Toaster } from '@/components/ui/toaster';
 import { KeyboardShortcutsProvider } from '@/components/keyboard-shortcuts-provider';
 import { MobileProvider } from '@/components/mobile/MobileProvider';
 import { SessionProvider } from '@/components/session-provider';
+import TodoMoreIcon from './icon';
 
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: {
-    default: 'Todoly - Smart Task Management',
-    template: '%s | Todoly'
+    default: 'TodoMore - Smart Task Management',
+    template: '%s | TodoMore'
   },
-  description: 'Todoly is a powerful task management application that helps you organize, prioritize, and complete your tasks efficiently. Features include recurring tasks, subtasks, tags, calendar view, and more.',
-  keywords: ['todo', 'task management', 'productivity', 'tasks', 'todoly', 'task organizer', 'kanban', 'calendar'],
-  authors: [{ name: 'Todoly Team' }],
-  creator: 'Todoly',
-  publisher: 'Todoly',
+  description: 'TodoMore is a powerful task management application that helps you organize, prioritize, and complete your tasks efficiently. Features include recurring tasks, subtasks, tags, calendar view, and more.',
+  keywords: ['todo', 'task management', 'productivity', 'tasks', 'todomore', 'task organizer', 'kanban', 'calendar'],
+  authors: [{ name: 'TodoMore Team' }],
+  creator: 'TodoMore',
+  publisher: 'TodoMore',
   metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'),
+  icons: {
+    icon: [
+      {
+        url: '/favicon.svg',
+        type: 'image/svg+xml',
+      },
+      {
+        url: '/apple-icon.svg',
+        sizes: '180x180',
+        type: 'image/svg+xml',
+      },
+    ],
+  },
   openGraph: {
     type: 'website',
     locale: 'en_US',
     url: '/',
-    title: 'Todoly - Smart Task Management',
-    description: 'Organize, prioritize, and complete your tasks efficiently with Todoly',
-    siteName: 'Todoly',
+    title: 'TodoMore - Smart Task Management',
+    description: 'Organize, prioritize, and complete your tasks efficiently with TodoMore',
+    siteName: 'TodoMore',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Todoly - Smart Task Management',
-    description: 'Organize, prioritize, and complete your tasks efficiently with Todoly',
-    creator: '@todoly',
+    title: 'TodoMore - Smart Task Management',
+    description: 'Organize, prioritize, and complete your tasks efficiently with TodoMore',
+    creator: '@todomore',
   },
   robots: {
     index: true,

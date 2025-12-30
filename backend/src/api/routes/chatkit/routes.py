@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import Response, StreamingResponse
 
 from src.auth import get_current_user
-from src.core.chatkit_server import TodolyChatKitServer
+from src.core.chatkit_server import TodoMoreChatKitServer
 from src.core.logging import get_logger
 from src.models.user import User
 
@@ -20,21 +20,21 @@ logger = get_logger(__name__)
 router = APIRouter(tags=["chatkit"])
 
 # Initialize ChatKit server (singleton)
-_chatkit_server: Optional[TodolyChatKitServer] = None
+_chatkit_server: Optional[TodoMoreChatKitServer] = None
 
 
-def get_chatkit_server() -> TodolyChatKitServer:
+def get_chatkit_server() -> TodoMoreChatKitServer:
     """Get or create the ChatKit server instance.
 
     Returns:
-        TodolyChatKitServer instance
+        TodoMoreChatKitServer instance
     """
     global _chatkit_server
     if _chatkit_server is None:
         database_url = os.getenv("DATABASE_URL")
         if not database_url:
             raise ValueError("DATABASE_URL environment variable not set")
-        _chatkit_server = TodolyChatKitServer(database_url)
+        _chatkit_server = TodoMoreChatKitServer(database_url)
     return _chatkit_server
 
 

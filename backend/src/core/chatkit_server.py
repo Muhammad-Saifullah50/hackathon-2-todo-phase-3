@@ -1,4 +1,4 @@
-"""ChatKit Server implementation for Todoly task management.
+"""ChatKit Server implementation for TodoMore task management.
 
 This module provides the ChatKit server that bridges the ChatKit frontend
 with our OpenAI Agents SDK + FastMCP + LiteLLM backend.
@@ -49,7 +49,7 @@ def sanitize_json_arguments(text: str) -> str:
 
     # Find JSON-like content between curly braces
     # Look for patterns like: key: value or "key": "value"
-    json_pattern = r'\{[^{}]*\}'
+    json_pattern = r"\{[^{}]*\}"
     matches = list(re.finditer(json_pattern, text))
 
     if not matches:
@@ -61,7 +61,7 @@ def sanitize_json_arguments(text: str) -> str:
         original = match.group()
         sanitized = _sanitize_json_block(original)
         if sanitized != original:
-            result = result[:match.start()] + sanitized + result[match.end():]
+            result = result[: match.start()] + sanitized + result[match.end() :]
 
     return result
 
@@ -74,33 +74,29 @@ def _sanitize_json_block(block: str) -> str:
     block = block.strip()
 
     # Remove leading colon if present (common Nebius error)
-    block = re.sub(r'^:\s*', '', block)
+    block = re.sub(r"^:\s*", "", block)
 
     # Remove trailing colon if present
-    block = re.sub(r':\s*$', '', block)
+    block = re.sub(r":\s*$", "", block)
 
     # Ensure it starts with { and ends with }
-    if not block.startswith('{'):
+    if not block.startswith("{"):
         # Try to find JSON start
-        json_start = block.find('{')
+        json_start = block.find("{")
         if json_start != -1:
             block = block[json_start:]
-    if not block.endswith('}'):
+    if not block.endswith("}"):
         # Try to find JSON end
-        json_end = block.rfind('}')
+        json_end = block.rfind("}")
         if json_end != -1:
-            block = block[:json_end + 1]
+            block = block[: json_end + 1]
 
     # If still not valid JSON, return original
-    if not (block.startswith('{') and block.endswith('}')):
+    if not (block.startswith("{") and block.endswith("}")):
         return block
 
     # Fix: add quotes around unquoted keys (e.g., {user_id: "..."} -> {"user_id": "..."})
-    block = re.sub(
-        r'\{(\s*)([a-zA-Z_][a-zA-Z0-9_]*)(\s*):',
-        r'{\1"\2"\3:',
-        block
-    )
+    block = re.sub(r"\{(\s*)([a-zA-Z_][a-zA-Z0-9_]*)(\s*):", r'{\1"\2"\3:', block)
 
     # Fix: add quotes around unquoted string values that are simple words
     # This is trickier - we need to avoid matching numbers, booleans, null
@@ -110,16 +106,16 @@ def _sanitize_json_block(block: str) -> str:
         value = match.group(2)
         after = match.group(3)
         # Don't quote if it looks like a number or boolean
-        if value.lower() in ('true', 'false', 'null') or re.match(r'^-?\d+(\.\d+)?$', value):
+        if value.lower() in ("true", "false", "null") or re.match(
+            r"^-?\d+(\.\d+)?$", value
+        ):
             return match.group(0)
         return f'{before}"{value}"{after}'
 
     # Only apply if the value isn't already quoted
     # Match colon followed by word character not preceded by quote
     block = re.sub(
-        r'(:\s*)([a-zA-Z_][a-zA-Z0-9_]*)(\s*[,}])',
-        fix_unquoted_value,
-        block
+        r"(:\s*)([a-zA-Z_][a-zA-Z0-9_]*)(\s*[,}])", fix_unquoted_value, block
     )
 
     return block
@@ -177,8 +173,8 @@ title_agent = Agent(
 )
 
 
-class TodolyChatKitServer(ChatKitServer):
-    """ChatKit server implementation for Todoly task management.
+class TodoMoreChatKitServer(ChatKitServer):
+    """ChatKit server implementation for TodoMore task management.
 
     This server integrates:
     - ChatKit frontend for React UI
@@ -229,7 +225,7 @@ class TodolyChatKitServer(ChatKitServer):
 
         # Create task management agent with MCP server
         agent = Agent(
-            name="TaskBot",
+            name="TodoBot",
             instructions=f"""You are a task management assistant for a todo app. You help users manage their tasks through natural conversation.
 
 ## CRITICAL RULES:
@@ -277,16 +273,16 @@ Remember: Output CLEAN JSON for tool arguments - no extra characters!
 user_id is always: "{user_id}"
 """,
             model=LitellmModel(
-                #  model="gemini/gemini-2.5-flash",
-                # api_key=settings.GEMINI_API_KEY
-                model="openrouter/qwen/qwen3-coder",
-                api_key=settings.OPENROUTER_API_KEY,
+                model="gemini/gemini-2.5-flash",
+                api_key=settings.GEMINI_API_KEY,
+                # model="openrouter/qwen/qwen3-coder",
+                # api_key=settings.OPENROUTER_API_KEY,
             ),
             model_settings=ModelSettings(
                 include_usage=True,
                 temperature=0.5,  # Lower temperature for more focused responses
-                max_tokens=1024, 
-                tool_choice="required"  # Reduced tokens for shorter responses
+                max_tokens=1024,
+                tool_choice="required",  # Reduced tokens for shorter responses
             ),
             mcp_servers=[mcp_server],
         )
@@ -397,26 +393,30 @@ user_id is always: "{user_id}"
                 thread_items_page = await self.store.load_thread_items(
                     thread_id=thread.id,
                     after=None,  # Load from beginning
-                    limit=100,   # Load up to 100 items
-                    order='asc', # Oldest first for proper conversation order
-                    context=context
+                    limit=100,  # Load up to 100 items
+                    order="asc",  # Oldest first for proper conversation order
+                    context=context,
                 )
                 # Convert previous items to agent input format
                 history_items = []
                 for item in thread_items_page.data:
-                    if hasattr(item, 'type'):
+                    if hasattr(item, "type"):
                         # Convert each item to the format expected by the agent
                         item_input = await simple_to_agent_input(item)
                         if item_input:
                             history_items.extend(item_input)
-                logger.info(f"Loaded {len(history_items)} history items from conversation")
+                logger.info(
+                    f"Loaded {len(history_items)} history items from conversation"
+                )
             except Exception as history_err:
                 logger.warning(f"Could not load conversation history: {history_err}")
                 history_items = []
 
             # Combine history with new input for full context
             full_input = history_items + new_items
-            logger.info(f"Running agent with {len(full_input)} total items ({len(history_items)} history + {len(new_items)} new)")
+            logger.info(
+                f"Running agent with {len(full_input)} total items ({len(history_items)} history + {len(new_items)} new)"
+            )
 
             # Run the agent with full conversation history
             result = Runner.run_streamed(
@@ -429,8 +429,12 @@ user_id is always: "{user_id}"
             # Stream agent response - manually save assistant messages with unique IDs
             event_count = 0
             saved_message_ids = set()  # Track which messages we've already saved
-            seen_message_content = set()  # Track message content to prevent duplicates from retries
-            last_content_fingerprint = None  # Track last message fingerprint for near-duplicate detection
+            seen_message_content = (
+                set()
+            )  # Track message content to prevent duplicates from retries
+            last_content_fingerprint = (
+                None  # Track last message fingerprint for near-duplicate detection
+            )
 
             # Patterns that indicate tool response messages (these will be filtered out)
             # Tool responses typically start with emojis like ✅, 🗑️, ✏️ and follow a format
@@ -452,7 +456,11 @@ user_id is always: "{user_id}"
                 # Also filter messages that are ONLY tool responses (short, emoji + task + action)
                 # Pattern: "emoji Task 'name' action"
                 import re
-                if re.match(r"^[✅🗑️✏️🔄📋]\s*\w+.*(created|deleted|updated|completed|restored|toggled|moved)$", content):
+
+                if re.match(
+                    r"^[✅🗑️✏️🔄📋]\s*\w+.*(created|deleted|updated|completed|restored|toggled|moved)$",
+                    content,
+                ):
                     return True
                 return False
 
@@ -473,7 +481,10 @@ user_id is always: "{user_id}"
                 # Very similar (one contains the other with minor differences)
                 if len(curr_fingerprint) > 50 and len(prev_fingerprint) > 50:
                     # Check if one is a subset of the other (for task lists)
-                    if curr_fingerprint in prev_fingerprint or prev_fingerprint in curr_fingerprint:
+                    if (
+                        curr_fingerprint in prev_fingerprint
+                        or prev_fingerprint in curr_fingerprint
+                    ):
                         return True
                 return False
 
@@ -483,7 +494,11 @@ user_id is always: "{user_id}"
                 event_count += 1
 
                 # Skip duplicate assistant messages (prevents issues from ChatKit retries)
-                if hasattr(event, "item") and hasattr(event, "type") and event.type == "thread.item.done":
+                if (
+                    hasattr(event, "item")
+                    and hasattr(event, "type")
+                    and event.type == "thread.item.done"
+                ):
                     if event.item.type == "assistant_message":
                         # Extract content for deduplication
                         content = ""
@@ -501,7 +516,9 @@ user_id is always: "{user_id}"
 
                         # Filter out tool response messages (show only agent conversational responses)
                         if content.strip() and is_tool_response(content):
-                            logger.info(f"⏭️ Filtering out tool response: {content[:50]}...")
+                            logger.info(
+                                f"⏭️ Filtering out tool response: {content[:50]}..."
+                            )
                             # Still track it to avoid duplicate processing
                             content_hash = content.strip()[:100]
                             seen_message_content.add(content_hash)
@@ -510,7 +527,9 @@ user_id is always: "{user_id}"
 
                         # Check for near-duplicate content (same message appearing twice)
                         if is_near_duplicate(content, last_content_fingerprint):
-                            logger.info(f"⏭️ Skipping near-duplicate message: {content[:50]}...")
+                            logger.info(
+                                f"⏭️ Skipping near-duplicate message: {content[:50]}..."
+                            )
                             content_hash = content.strip()[:100]
                             seen_message_content.add(content_hash)
                             continue
@@ -518,36 +537,56 @@ user_id is always: "{user_id}"
                         # Update fingerprint after processing
                         last_content_fingerprint = get_content_fingerprint(content)
 
-                        content_hash = content.strip()[:100]  # Use first 100 chars as hash
+                        content_hash = content.strip()[
+                            :100
+                        ]  # Use first 100 chars as hash
                         if content_hash in seen_message_content:
-                            logger.warning(f"⏭️ Skipping duplicate message: {content_hash[:30]}...")
+                            logger.warning(
+                                f"⏭️ Skipping duplicate message: {content_hash[:30]}..."
+                            )
                             continue
                         seen_message_content.add(content_hash)
 
                 # Save assistant message on thread.item.done event (only once per ID)
-                if hasattr(event, "item") and hasattr(event, "type") and event.type == "thread.item.done":
+                if (
+                    hasattr(event, "item")
+                    and hasattr(event, "type")
+                    and event.type == "thread.item.done"
+                ):
                     if event.item.type == "assistant_message":
                         try:
                             # CRITICAL FIX: ChatKit uses __fake_id__ during streaming
                             # Generate a real unique ID before saving
                             if event.item.id == "__fake_id__":
-                                real_id = self.store.generate_item_id("message", thread, context)
+                                real_id = self.store.generate_item_id(
+                                    "message", thread, context
+                                )
                                 event.item.id = real_id
 
                             # Only save if we haven't saved this message yet
                             if event.item.id not in saved_message_ids:
-                                await self.store.add_thread_item(thread.id, event.item, context)
+                                await self.store.add_thread_item(
+                                    thread.id, event.item, context
+                                )
                                 saved_message_ids.add(event.item.id)
-                                logger.info(f"✅ Saved assistant message {event.item.id}")
+                                logger.info(
+                                    f"✅ Saved assistant message {event.item.id}"
+                                )
                             else:
-                                logger.debug(f"⏭️ Skipping duplicate save for {event.item.id}")
+                                logger.debug(
+                                    f"⏭️ Skipping duplicate save for {event.item.id}"
+                                )
 
                         except Exception as save_err:
-                            logger.error(f"❌ Failed to save assistant message: {save_err}")
+                            logger.error(
+                                f"❌ Failed to save assistant message: {save_err}"
+                            )
 
                 yield event
 
-            logger.info(f"🏁 Streaming complete - Saved {len(saved_message_ids)} unique assistant messages")
+            logger.info(
+                f"🏁 Streaming complete - Saved {len(saved_message_ids)} unique assistant messages"
+            )
 
             # Trigger frontend revalidation after streaming completes
             # This ensures the UI updates with any task changes made by the chatbot

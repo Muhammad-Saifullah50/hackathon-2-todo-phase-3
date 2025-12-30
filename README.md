@@ -1,4 +1,4 @@
-# Agentic AI Hackathon 2 - Todo App (Phase 2)
+# Agentic AI Hackathon 2 - TodoMore App (Phase 2)
 
 A modernized, full-stack version of the Todo Application, transitioning from a CLI tool to a robust web architecture.
 

@@ -1,5 +1,36 @@
+import os
+from typing import List
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _get_mcp_server_url() -> str:
+    """Build MCP server URL dynamically based on environment."""
+    vercel_url = os.getenv("VERCEL_URL")
+    if vercel_url:
+        return f"https://{vercel_url}/mcp"
+    host = os.getenv("MCP_HOST", "localhost")
+    port = os.getenv("MCP_PORT", "8000")
+    return f"http://{host}:{port}/mcp"
+
+
+def _get_mcp_root_url() -> str:
+    """Build MCP root URL dynamically based on environment."""
+    vercel_url = os.getenv("VERCEL_URL")
+    if vercel_url:
+        return f"https://{vercel_url}"
+    host = os.getenv("MCP_HOST", "localhost")
+    port = os.getenv("MCP_PORT", "8000")
+    return f"http://{host}:{port}"
+
+
+def _get_default_cors_origins() -> List[str]:
+    """Build CORS origins dynamically based on environment."""
+    vercel_url = os.getenv("VERCEL_URL")
+    if vercel_url:
+        return [f"https://{vercel_url}", "https://*.vercel.app"]
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    return ["http://localhost:3000", frontend_url]
 
 
 class Settings(BaseSettings):
@@ -7,16 +38,16 @@ class Settings(BaseSettings):
     BETTER_AUTH_SECRET: str
     OPENROUTER_API_KEY: str
     GEMINI_API_KEY: str
-    CORS_ORIGINS: list[str] = ["http://localhost:3000"]
+    CORS_ORIGINS: List[str] = _get_default_cors_origins()
     LOG_LEVEL: str = "INFO"
     ENVIRONMENT: str = "development"
     # Frontend URL for revalidation calls
     FRONTEND_URL: str = "http://localhost:3000"
-    # MCP Server Configuration
-    MCP_SERVER_URL: str = "http://localhost:8000/mcp"
+    # MCP Server Configuration - dynamically computed
+    MCP_SERVER_URL: str = _get_mcp_server_url()
     MCP_SERVER_TOKEN: str = "default-mcp-token"
     # Alternative: Use root path (MCP app runs at /mcp internally)
-    MCP_SERVER_ROOT_URL: str = "http://localhost:8000"
+    MCP_SERVER_ROOT_URL: str = _get_mcp_root_url()
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod

@@ -1,24 +1,11 @@
 /**
  * React Query hooks for task operations.
- * Provides optimistic updates for better UX.
+ * Uses direct API calls instead of server actions for better auth handling.
  */
 
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import {
-  getTasks,
-  getTrash,
-} from '@/lib/api/tasks';
-import {
-  createTaskAction,
-  updateTaskAction,
-  toggleTaskAction,
-  bulkToggleTasksAction,
-  deleteTaskAction,
-  bulkDeleteTasksAction,
-  reorderTasksAction,
-  restoreTaskAction,
-  permanentDeleteTaskAction,
-} from '@/app/actions/tasks';
+import { api } from '@/lib/api';
+import { getTasks, getTrash } from '@/lib/api/tasks';
 import type { CreateTaskRequest, Task, TaskQueryParams, TaskStatus } from '@/lib/types/task';
 import { useToast } from './use-toast';
 
@@ -42,35 +29,32 @@ export function useTasks(params: TaskQueryParams = {}) {
   return useQuery({
     queryKey: tasksKeys.list(params),
     queryFn: () => getTasks(params),
-    staleTime: 0, // Always consider data stale so invalidateQueries triggers refetch
-    gcTime: 5 * 60 * 1000, // Keep unused data in cache for 5 minutes
-    refetchOnWindowFocus: true, // Refetch when user returns to window
-    refetchOnMount: 'always', // ALWAYS refetch on component mount - never use stale data
+    staleTime: 0,
+    gcTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: true,
+    refetchOnMount: 'always',
   });
 }
 
 /**
  * Hook to create a new task with optimistic updates.
- * Provides instant UI feedback even before server responds.
  */
 export function useCreateTask() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: createTaskAction,
+    mutationFn: async (data: CreateTaskRequest) => {
+      const response = await api.post('/api/v1/tasks', data);
+      return response.data.data;
+    },
 
-    // Optimistic update: show task immediately
     onMutate: async (newTask: CreateTaskRequest) => {
-      // Cancel any outgoing refetches for all task lists
       await queryClient.cancelQueries({ queryKey: tasksKeys.all });
 
-      // Snapshot the previous value
       const previousTasks = queryClient.getQueryData(tasksKeys.all);
 
-      // Generate temporary ID for optimistic task
       const tempId = `temp-${crypto.randomUUID()}`;
 
-      // Optimistically update the cache for all task lists
       queryClient.setQueryData(tasksKeys.all, (old: any) => {
         if (!old || !old.data) return old;
 
@@ -99,23 +83,16 @@ export function useCreateTask() {
         };
       });
 
-      // Return context for rollback
       return { previousTasks };
     },
 
-    // Rollback on error
     onError: (error, _variables, context) => {
-      // Restore previous state
       if (context?.previousTasks) {
         queryClient.setQueryData(tasksKeys.all, context.previousTasks);
       }
-
-      // Log error for debugging
       console.error('Failed to create task:', error);
     },
 
-    // After server action completes, Next.js revalidation handles cache refresh
-    // We just invalidate React Query cache as a fallback
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tasksKeys.all });
       queryClient.invalidateQueries({ queryKey: ['analytics'] });
@@ -124,14 +101,14 @@ export function useCreateTask() {
 }
 
 /**
- * Hook to update a task with optimistic updates and rollback on error.
+ * Hook to update a task with optimistic updates.
  */
 export function useUpdateTask() {
   const queryClient = useQueryClient();
-  const { toast } = useToast();
+  const { toast, dismiss } = useToast();
 
   return useMutation({
-    mutationFn: ({
+    mutationFn: async ({
       taskId,
       data,
     }: {
@@ -145,19 +122,18 @@ export function useUpdateTask() {
         notes?: string | null;
         manual_order?: number | null;
       };
-    }) => updateTaskAction(taskId, data),
+    }) => {
+      const response = await api.put(`/api/v1/tasks/${taskId}`, data);
+      return response.data.data;
+    },
 
-    // Optimistic update: show changes immediately
     onMutate: async ({ taskId, data }) => {
-      // Cancel any outgoing refetches
       await queryClient.cancelQueries({ queryKey: tasksKeys.all });
 
-      // Snapshot the previous value for all task queries
       const previousQueries = queryClient.getQueriesData({
         queryKey: tasksKeys.all,
       });
 
-      // Optimistically update all task list caches
       queryClient.setQueriesData({ queryKey: tasksKeys.all }, (old: any) => {
         if (!old || !old.data || !old.data.tasks) return old;
 
@@ -188,20 +164,16 @@ export function useUpdateTask() {
         };
       });
 
-      // Return context for rollback
       return { previousQueries };
     },
 
-    // Rollback on error
     onError: (error, _variables, context) => {
-      // Restore all previous states
       if (context?.previousQueries) {
         context.previousQueries.forEach(([queryKey, data]) => {
           queryClient.setQueryData(queryKey, data);
         });
       }
 
-      // Show error toast
       toast({
         variant: "destructive",
         title: "Failed to update task",
@@ -209,19 +181,17 @@ export function useUpdateTask() {
           error instanceof Error
             ? error.message
             : "An error occurred while updating the task.",
+        duration: 5000,
       });
 
-      // Log error for debugging
       console.error("Failed to update task:", error);
     },
 
-    // After server action completes, Next.js revalidation handles cache refresh
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tasksKeys.all });
       queryClient.invalidateQueries({ queryKey: ['analytics'] });
     },
 
-    // Show success toast on success
     onSuccess: () => {
       toast({
         title: "Task updated",
@@ -239,19 +209,20 @@ export function useToggleTask() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: (taskId: string) => toggleTaskAction(taskId),
+    mutationFn: async (taskId: string) => {
+      const response = await api.patch(`/api/v1/tasks/${taskId}/toggle`);
+      return response.data.data;
+    },
 
-    // Optimistic update: flip status immediately
     onMutate: async (taskId) => {
       await queryClient.cancelQueries({ queryKey: tasksKeys.all });
 
       const previousQueries = queryClient.getQueriesData({ queryKey: tasksKeys.all });
 
-      // Optimistically toggle status in all caches
+      const now = new Date().toISOString();
+
       queryClient.setQueriesData({ queryKey: tasksKeys.all }, (old: any) => {
         if (!old || !old.data || !old.data.tasks) return old;
-
-        const now = new Date().toISOString();
 
         return {
           ...old,
@@ -302,7 +273,6 @@ export function useToggleTask() {
       });
     },
 
-    // After server action completes, Next.js revalidation handles cache refresh
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tasksKeys.all });
       queryClient.invalidateQueries({ queryKey: ['analytics'] });
@@ -318,8 +288,13 @@ export function useBulkToggle() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: ({ taskIds, targetStatus }: { taskIds: string[]; targetStatus: TaskStatus }) =>
-      bulkToggleTasksAction(taskIds, targetStatus),
+    mutationFn: async ({ taskIds, targetStatus }: { taskIds: string[]; targetStatus: TaskStatus }) => {
+      const response = await api.patch('/api/v1/tasks/bulk-toggle', {
+        task_ids: taskIds,
+        target_status: targetStatus,
+      });
+      return response.data.data;
+    },
 
     onMutate: async ({ taskIds, targetStatus }) => {
       await queryClient.cancelQueries({ queryKey: tasksKeys.all });
@@ -329,7 +304,6 @@ export function useBulkToggle() {
       const now = new Date().toISOString();
       const completedAt = targetStatus === 'completed' ? now : null;
 
-      // Optimistically update all selected tasks
       queryClient.setQueriesData({ queryKey: tasksKeys.all }, (old: any) => {
         if (!old || !old.data || !old.data.tasks) return old;
 
@@ -370,7 +344,6 @@ export function useBulkToggle() {
       });
     },
 
-    // After server action completes, Next.js revalidation handles cache refresh
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tasksKeys.all });
       queryClient.invalidateQueries({ queryKey: ['analytics'] });
@@ -394,15 +367,16 @@ export function useDeleteTask() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: (taskId: string) => deleteTaskAction(taskId),
+    mutationFn: async (taskId: string) => {
+      const response = await api.delete(`/api/v1/tasks/${taskId}`);
+      return response.data.data;
+    },
 
-    // Optimistic update: remove task immediately
     onMutate: async (taskId) => {
       await queryClient.cancelQueries({ queryKey: tasksKeys.all });
 
       const previousQueries = queryClient.getQueriesData({ queryKey: tasksKeys.all });
 
-      // Optimistically remove task from all caches
       queryClient.setQueriesData({ queryKey: tasksKeys.all }, (old: any) => {
         if (!old || !old.data || !old.data.tasks) return old;
 
@@ -440,7 +414,6 @@ export function useDeleteTask() {
       });
     },
 
-    // After server action completes, Next.js revalidation handles cache refresh
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tasksKeys.all });
       queryClient.invalidateQueries({ queryKey: ['analytics'] });
@@ -463,7 +436,23 @@ export function useBulkDelete() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: (taskIds: string[]) => bulkDeleteTasksAction(taskIds),
+    mutationFn: async (taskIds: string[]) => {
+      // Validate task IDs before sending
+      const validTaskIds = taskIds.filter(id => {
+        // Check if string looks like a UUID or temp ID (standard UUID format: 8-4-4-4-12)
+        return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      });
+
+      if (validTaskIds.length !== taskIds.length) {
+        console.error('Invalid task IDs detected:', taskIds);
+        throw new Error('Some task IDs are invalid');
+      }
+
+      const response = await api.post('/api/v1/tasks/bulk-delete', {
+        task_ids: validTaskIds,
+      });
+      return response.data.data;
+    },
 
     onMutate: async (taskIds) => {
       await queryClient.cancelQueries({ queryKey: tasksKeys.all });
@@ -472,7 +461,6 @@ export function useBulkDelete() {
 
       const taskIdSet = new Set(taskIds);
 
-      // Optimistically remove all selected tasks
       queryClient.setQueriesData({ queryKey: tasksKeys.all }, (old: any) => {
         if (!old || !old.data || !old.data.tasks) return old;
 
@@ -502,7 +490,6 @@ export function useBulkDelete() {
       });
     },
 
-    // After server action completes, Next.js revalidation handles cache refresh
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tasksKeys.all });
       queryClient.invalidateQueries({ queryKey: ['analytics'] });
@@ -538,14 +525,16 @@ export function useRestoreTask() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: (taskId: string) => restoreTaskAction(taskId),
+    mutationFn: async (taskId: string) => {
+      const response = await api.post(`/api/v1/tasks/${taskId}/restore`);
+      return response.data.data;
+    },
 
     onMutate: async (taskId) => {
       await queryClient.cancelQueries({ queryKey: tasksKeys.all });
 
       const previousQueries = queryClient.getQueriesData({ queryKey: tasksKeys.all });
 
-      // Optimistically remove from trash view
       queryClient.setQueriesData({ queryKey: [...tasksKeys.all, 'trash'] }, (old: any) => {
         if (!old || !old.data || !old.data.tasks) return old;
 
@@ -575,7 +564,6 @@ export function useRestoreTask() {
       });
     },
 
-    // After server action completes, Next.js revalidation handles cache refresh
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tasksKeys.all });
       queryClient.invalidateQueries({ queryKey: ['analytics'] });
@@ -598,14 +586,16 @@ export function usePermanentDelete() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: (taskId: string) => permanentDeleteTaskAction(taskId),
+    mutationFn: async (taskId: string) => {
+      const response = await api.delete(`/api/v1/tasks/${taskId}/permanent`);
+      return response.data.data;
+    },
 
     onMutate: async (taskId) => {
       await queryClient.cancelQueries({ queryKey: tasksKeys.all });
 
       const previousQueries = queryClient.getQueriesData({ queryKey: tasksKeys.all });
 
-      // Optimistically remove from trash view
       queryClient.setQueriesData({ queryKey: [...tasksKeys.all, 'trash'] }, (old: any) => {
         if (!old || !old.data || !old.data.tasks) return old;
 
@@ -635,7 +625,6 @@ export function usePermanentDelete() {
       });
     },
 
-    // After server action completes, Next.js revalidation handles cache refresh
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tasksKeys.all });
       queryClient.invalidateQueries({ queryKey: ['analytics'] });
@@ -652,41 +641,42 @@ export function usePermanentDelete() {
 
 /**
  * Hook to reorder tasks with optimistic updates.
- * Updates the manual_order field for the provided task IDs.
  */
 export function useReorderTasks() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: (taskIds: string[]) => reorderTasksAction(taskIds),
+    mutationFn: async (taskIds: string[]) => {
+      const response = await api.patch('/api/v1/tasks/reorder', {
+        task_ids: taskIds,
+      });
+      return response.data.data;
+    },
 
-    // Optimistic update: reorder tasks immediately
     onMutate: async (taskIds) => {
       await queryClient.cancelQueries({ queryKey: tasksKeys.all });
 
       const previousQueries = queryClient.getQueriesData({ queryKey: tasksKeys.all });
 
-      // Optimistically reorder tasks in all caches
+      const taskMap = new Map<string, Task>(
+        (queryClient.getQueryData(tasksKeys.all) as any)?.data?.tasks?.map((task: Task) => [task.id, task]) || []
+      );
+      const reorderedTasks: Task[] = [];
+      for (let i = 0; i < taskIds.length; i++) {
+        const task = taskMap.get(taskIds[i]);
+        if (task) {
+          reorderedTasks.push({ ...task, manual_order: i });
+        }
+      }
+
+      const reorderSet = new Set(taskIds);
+      const remainingTasks = (queryClient.getQueryData(tasksKeys.all) as any)?.data?.tasks?.filter(
+        (task: Task) => !reorderSet.has(task.id)
+      ) || [];
+
       queryClient.setQueriesData({ queryKey: tasksKeys.all }, (old: any) => {
         if (!old || !old.data || !old.data.tasks) return old;
-
-        const taskMap = new Map<string, Task>(
-          old.data.tasks.map((task: Task) => [task.id, task])
-        );
-        const reorderedTasks: Task[] = [];
-        for (let i = 0; i < taskIds.length; i++) {
-          const task = taskMap.get(taskIds[i]);
-          if (task) {
-            reorderedTasks.push({ ...task, manual_order: i });
-          }
-        }
-
-        // Add any tasks that weren't in the reorder list at the end
-        const reorderSet = new Set(taskIds);
-        const remainingTasks = old.data.tasks.filter(
-          (task: Task) => !reorderSet.has(task.id)
-        );
 
         return {
           ...old,
@@ -714,7 +704,6 @@ export function useReorderTasks() {
       });
     },
 
-    // After server action completes, Next.js revalidation handles cache refresh
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tasksKeys.all });
     },

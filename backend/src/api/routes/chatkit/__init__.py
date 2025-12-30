@@ -1,4 +1,4 @@
-"""ChatKit integration routes for Todoly."""
+"""ChatKit integration routes for TodoMore."""
 
 from src.api.routes.chatkit.routes import router
 

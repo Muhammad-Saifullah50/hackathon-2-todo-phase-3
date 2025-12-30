@@ -5,16 +5,26 @@
       "src": "src/main.py",
       "use": "@vercel/python",
       "config": {
-        "buildCommand": "pip install --no-index --find-links=./wheels -r requirements.txt"
+        "buildCommand": "pip install --no-index --find-links=./wheels -r requirements.txt",
+        "pythonVersion": "3.12"
       }
     }
   ],
   "routes": [
     {
+      "src": "/mcp/?(.*)",
+      "dest": "src/mcp_server/vercel_mcp.py"
+    },
+    {
       "src": "/(.*)",
       "dest": "src/main.py"
     }
-  ]
+  ],
+  "functions": {
+    "src/mcp_server/vercel_mcp.py": {
+      "maxDuration": 60
+    }
+  }
 }
 
 

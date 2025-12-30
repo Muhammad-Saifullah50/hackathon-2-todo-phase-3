@@ -28,7 +28,7 @@ from agents import Agent, Runner
 
 # Define agent with instructions
 agent = Agent(
-    name="TaskBot",
+    name="TodoBot",
     instructions="You are a helpful task management assistant. Help users create, view, and manage their tasks.",
     model="gpt-4o-mini"
 )
@@ -728,7 +728,7 @@ import os
 
 # Create single agent with GLM-4.5-air via LiteLLM
 agent = Agent(
-    name="TaskBot",
+    name="TodoBot",
     instructions="You are a helpful task management assistant. Help users create, view, and manage their tasks through natural conversation.",
     model=LitellmModel(
         model="zai/glm-4.5-air",  # Zhipu AI model via LiteLLM

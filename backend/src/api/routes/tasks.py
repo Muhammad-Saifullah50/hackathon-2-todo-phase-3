@@ -16,6 +16,7 @@ from src.schemas.task_schemas import (
     TaskListResponse,
     TaskUpdateRequest,
     BulkToggleRequest,
+    BulkDeleteRequest,
     BulkOperationResponse,
     DueDateStatsResponse,
     UpdateDueDateRequest,
@@ -665,7 +666,7 @@ async def delete_task(
     response_model=StandardizedResponse[BulkOperationResponse],
 )
 async def bulk_delete_tasks(
-    request: BulkToggleRequest,  # Reuse BulkToggleRequest for task_ids
+    request: BulkDeleteRequest,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ) -> StandardizedResponse[BulkOperationResponse]:

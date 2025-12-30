@@ -14,7 +14,7 @@ const testimonials = [
     company: "TechCorp",
     avatar: "SJ",
     content:
-      "Todoly has completely transformed how our team manages projects. The visual indicators and multiple views make it so easy to stay on top of everything.",
+      "TodoMore has completely transformed how our team manages projects. The visual indicators and multiple views make it so easy to stay on top of everything.",
     rating: 5,
   },
   {
@@ -24,7 +24,7 @@ const testimonials = [
     company: "Independent",
     avatar: "MC",
     content:
-      "As a freelancer juggling multiple clients, Todoly's tag system and calendar view are game-changers. I never miss a deadline anymore!",
+      "As a freelancer juggling multiple clients, TodoMore's tag system and calendar view are game-changers. I never miss a deadline anymore!",
     rating: 5,
   },
   {
@@ -34,7 +34,7 @@ const testimonials = [
     company: "StartupXYZ",
     avatar: "ER",
     content:
-      "The keyboard shortcuts and command palette make me feel like a productivity superhero. Our team's efficiency has increased by 40% since switching to Todoly.",
+      "The keyboard shortcuts and command palette make me feel like a productivity superhero. Our team's efficiency has increased by 40% since switching to TodoMore.",
     rating: 5,
   },
   {
@@ -44,7 +44,7 @@ const testimonials = [
     company: "GrowthCo",
     avatar: "DP",
     content:
-      "Beautiful design meets powerful functionality. Todoly is the only task manager that my entire team actually enjoys using. The animations are a nice touch!",
+      "Beautiful design meets powerful functionality. TodoMore is the only task manager that my entire team actually enjoys using. The animations are a nice touch!",
     rating: 5,
   },
 ];
@@ -92,7 +92,7 @@ export default function Testimonials() {
             Loved by thousands of users
           </h2>
           <p className="text-xl text-gray-600 dark:text-gray-300">
-            Join the community of productive teams and individuals who trust Todoly.
+            Join the community of productive teams and individuals who trust TodoMore.
           </p>
         </motion.div>
 

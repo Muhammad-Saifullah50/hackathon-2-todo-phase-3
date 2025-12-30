@@ -10,7 +10,7 @@ import { TaskList } from "@/components/tasks/TaskList";
 
 export const metadata: Metadata = {
   title: "My Tasks",
-  description: "Manage your tasks and stay organized with Todoly's powerful task management interface",
+  description: "Manage your tasks and stay organized with TodoMore's powerful task management interface",
 };
 
 export default function TasksPage() {

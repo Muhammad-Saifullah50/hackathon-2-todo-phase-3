@@ -96,7 +96,7 @@ export function EditTaskDialog({
   const [recurringDialogOpen, setRecurringDialogOpen] = useState(false);
   const [saveTemplateDialogOpen, setSaveTemplateDialogOpen] = useState(false);
 
-  const { data: recurrencePattern } = useRecurrencePattern(task.id);
+  const { data: recurrencePattern } = useRecurrencePattern(task.recurrence_pattern_id ? task.id : undefined);
   const { mutate: deleteRecurrence } = useDeleteRecurrence();
 
   const form = useForm<EditTaskFormData>({

@@ -15,8 +15,11 @@ export default function Navbar() {
 
   return (
     <nav className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 py-3 flex items-center justify-between">
-      <Link href={session ? "/tasks" : "/"} className="text-xl font-bold md:ml-0 ml-10">
-        Todoly
+      <Link href={session ? "/tasks" : "/"} className="flex items-center gap-2 text-xl font-bold md:ml-0 ml-10">
+        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 via-cyan-500 to-teal-500 flex items-center justify-center">
+          <span className="text-white font-bold text-sm">TM</span>
+        </div>
+        <span>TodoMore</span>
       </Link>
       <div className="flex items-center gap-4">
         {!isLoading && (
