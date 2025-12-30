@@ -1,13 +1,8 @@
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { NextRequest, NextResponse } from 'next/server';
 
-// Type-safe wrappers for Next.js revalidation functions
-const _revalidatePath = revalidatePath as (path: string, type?: 'page' | 'layout') => void;
-const _revalidateTag = revalidateTag as (tag: string, maxAge?: number) => void;
-
 /**
  * API Route for on-demand revalidation of task data.
- * Called by the backend chatbot after it makes changes to tasks.
  *
  * Usage from backend:
  * POST /api/revalidate/tasks
@@ -24,15 +19,15 @@ export async function POST(request: NextRequest) {
     const { action } = body;
 
     // Revalidate all task-related paths
-    _revalidatePath('/tasks', 'page');
-    _revalidatePath('/tasks/dashboard', 'page');
-    _revalidatePath('/tasks/kanban', 'page');
-    _revalidatePath('/tasks/calendar', 'page');
-    _revalidatePath('/tasks/trash', 'page');
+    revalidatePath('/tasks', 'page');
+    revalidatePath('/tasks/dashboard', 'page');
+    revalidatePath('/tasks/kanban', 'page');
+    revalidatePath('/tasks/calendar', 'page');
+    revalidatePath('/tasks/trash', 'page');
 
-    // Revalidate cache tags with maxAge for deprecation warning fix
-    _revalidateTag('tasks', 0);
-    _revalidateTag('analytics', 0);
+    // Revalidate cache tags (use "max" for Next.js 16 behavior)
+    revalidateTag('tasks', 'max');
+    revalidateTag('analytics', 'max');
 
     console.log(`[Revalidate API] Revalidated tasks cache after action: ${action}`);
 

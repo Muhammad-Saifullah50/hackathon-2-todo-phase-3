@@ -27,7 +27,7 @@ export function ChatBubble() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.2 }}
-            className="fixed bottom-24 right-6 z-50 w-[380px] md:w-[420px]"
+            className="fixed bottom-28 right-4 md:bottom-24 md:right-6 z-50 w-[calc(100vw-2rem)] max-w-[380px] md:max-w-[420px]"
           >
             <Card className="shadow-2xl border-2">
               <CardHeader className="pb-3 flex flex-row items-center justify-between">
@@ -57,7 +57,7 @@ export function ChatBubble() {
 
       {/* Floating Button */}
       <motion.div
-        className="fixed bottom-6 right-6 z-50"
+        className="fixed bottom-20 right-4 md:bottom-6 md:right-6 z-50"
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
       >

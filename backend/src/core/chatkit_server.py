@@ -226,63 +226,80 @@ class TodoMoreChatKitServer(ChatKitServer):
         # Create task management agent with MCP server
         agent = Agent(
             name="TodoBot",
-            instructions=f"""You are a task management assistant for a todo app. You help users manage their tasks through natural conversation.
+            instructions=f"""You are TodoBot, a friendly and helpful task management assistant. You help users manage their tasks through natural, conversational dialogue.
 
 ## CRITICAL RULES:
 1. You MUST use MCP tools for ALL task operations - NEVER fabricate task IDs or responses
 2. ALWAYS pass user_id="{user_id}" to EVERY tool call
 3. Use COMPLETE task IDs from tool results - NEVER guess or use partial IDs
-4. Wait for tool responses before responding to the user
-5. **AFTER TOOL CALLS: Use ONLY the tool's "message" field - do NOT add any additional text!**
+4. Wait for tool responses before providing your final confirmation to the user.
+5. DO NOT provide a "pre-confirmation" (e.g., "I'll do that now...") before calling the tool. Simply call the tool, then report the result naturally.
 
-## TOOL CALL RULES - FOLLOW EXACTLY:
+## TOOL CALL ARGUMENTS - MUST BE CLEAN JSON:
+When providing tool arguments, output ONLY valid JSON.
 
-### TOOL CALL ARGUMENTS MUST BE CLEAN JSON:
-When the system asks for tool arguments, output ONLY valid JSON.
-Example for list_tasks: {{"user_id": "{user_id}", "status": "pending"}}
-Example for add_task: {{"title": "Buy milk", "user_id": "{user_id}"}}
+### EXAMPLES:
+✅ CORRECT: {{"user_id": "{user_id}", "status": "pending"}}
+✅ CORRECT: {{"title": "Buy milk", "user_id": "{user_id}"}}
 
-### COMMON MISTAKES TO AVOID:
 ❌ WRONG: ": {{"user_id": "{user_id}"}}"  ← Leading colon!
 ❌ WRONG: {{user_id: "{user_id}"}}  ← Missing quotes around key!
 ❌ WRONG: {{"user_id": {user_id}}}  ← Missing quotes around value!
 
-✅ CORRECT: {{"user_id": "{user_id}"}}  ← Clean JSON!
+## CONVERSATIONAL RESPONSE STYLE:
 
-## TOOL USAGE:
+After receiving the tool output, provide a single, friendly response:
 
 ### For LISTING tasks:
-- User: "What tasks do I have?" → list_tasks with {{"user_id": "{user_id}"}}
-- User: "Show pending tasks" → list_tasks with {{"status": "pending", "user_id": "{user_id}"}}
+- User: "What tasks do I have?"
+- You: "You have 1 pending task: 'Go to university' 📝"
 
 ### For CREATING tasks:
-- User: "Add a task to buy milk" → add_task with {{"title": "Buy milk", "user_id": "{user_id}"}}
+- User: "Add a task to buy milk"
+- You: "✅ Got it! I've added 'Buy milk' to your task list."
 
 ### For COMPLETING tasks:
-- User: "Complete task [title]" → FIRST list_tasks, then complete_task with ACTUAL task_id
+- User: "Complete the university task"
+- You: "✅ Nice work! I've marked 'Go to university' as completed."
 
 ### For DELETING tasks:
-- User: "Delete the go to uni task" → FIRST list_tasks, then delete_task with ACTUAL task_id
+- User: "Delete the milk task"
+- You: "🗑️ Done! I've removed 'Buy milk' from your tasks."
 
-## RESPONSE STYLE:
-- Use emojis: ✅ Task created, ✅ Task completed, 🗑️ Task deleted
-- Use ONLY the tool's message field as your response
-- If a tool returns an error, explain it clearly
+### For EMPTY lists:
+- User: "Show my tasks"
+- You: "You're all caught up! You don't have any pending tasks right now. 🎉"
 
-Remember: Output CLEAN JSON for tool arguments - no extra characters!
+## TONE:
+- Be friendly and encouraging
+- Use emojis appropriately (✅ 📝 🗑️ ✏️ 🎉)
+- Keep responses concise but warm
+- Celebrate completions with positive reinforcement
+
+## TOOL USAGE PATTERNS:
+
+1. **Listing tasks**: Call list_tasks with {{"user_id": "{user_id}"}} or {{"status": "pending", "user_id": "{user_id}"}}
+
+2. **Creating tasks**: Call add_task with {{"title": "Task name", "user_id": "{user_id}"}}
+
+3. **Completing tasks**: FIRST call list_tasks to find the task, THEN call complete_task with the actual task_id
+
+4. **Deleting tasks**: FIRST call list_tasks to find the task, THEN call delete_task with the actual task_id
+
+Remember: Always use clean JSON for arguments, and respond naturally like a helpful friend!
 user_id is always: "{user_id}"
 """,
             model=LitellmModel(
-                model="gemini/gemini-2.5-flash",
+                model="gemini/gemini-2.5-flash-lite",
                 api_key=settings.GEMINI_API_KEY,
                 # model="openrouter/qwen/qwen3-coder",
                 # api_key=settings.OPENROUTER_API_KEY,
             ),
             model_settings=ModelSettings(
                 include_usage=True,
-                temperature=0.5,  # Lower temperature for more focused responses
+                temperature=0.7,  # Slightly higher for more natural, conversational responses
                 max_tokens=1024,
-                tool_choice="required",  # Reduced tokens for shorter responses
+                tool_choice="auto",  # Allow agent to decide when to use tools vs respond naturally
             ),
             mcp_servers=[mcp_server],
         )
@@ -353,6 +370,9 @@ user_id is always: "{user_id}"
         Yields:
             ChatKit-compatible event stream
         """
+        # Store MCP server reference to ensure proper cleanup
+        mcp_server = None
+
         try:
             logger.info(
                 f"Respond called: thread_id={thread.id}, thread_title={thread.title}, "
@@ -429,158 +449,86 @@ user_id is always: "{user_id}"
             # Stream agent response - manually save assistant messages with unique IDs
             event_count = 0
             saved_message_ids = set()  # Track which messages we've already saved
-            seen_message_content = (
-                set()
-            )  # Track message content to prevent duplicates from retries
-            last_content_fingerprint = (
-                None  # Track last message fingerprint for near-duplicate detection
-            )
 
-            # Patterns that indicate tool response messages (these will be filtered out)
-            # Tool responses typically start with emojis like ✅, 🗑️, ✏️ and follow a format
-            tool_response_patterns = [
-                "✅ task",
-                "🗑️ task",
-                "✏️ task",
-                "🔄 task",
-                "📋 task",
-            ]
-
-            def is_tool_response(content: str) -> bool:
-                """Check if content is a tool response message that should be filtered out."""
-                content_lower = content.lower().strip()
-                # Check if it starts with any tool response pattern
-                for pattern in tool_response_patterns:
-                    if content_lower.startswith(pattern):
-                        return True
-                # Also filter messages that are ONLY tool responses (short, emoji + task + action)
-                # Pattern: "emoji Task 'name' action"
-                import re
-
-                if re.match(
-                    r"^[✅🗑️✏️🔄📋]\s*\w+.*(created|deleted|updated|completed|restored|toggled|moved)$",
-                    content,
-                ):
-                    return True
-                return False
+            # SESSION DEDUPLICATION: Track messages sent in this specific response stream
+            sent_message_fingerprints = set()
+            last_content_fingerprint = None
 
             def get_content_fingerprint(content: str) -> str:
                 """Create a normalized fingerprint for duplicate detection."""
-                # Normalize: lowercase, remove extra whitespace, take first 300 chars
-                normalized = " ".join(content.lower().split())[:300]
-                return normalized
-
-            def is_near_duplicate(content: str, prev_fingerprint: str | None) -> bool:
-                """Check if content is identical or nearly identical to previous message."""
-                if not prev_fingerprint:
-                    return False
-                curr_fingerprint = get_content_fingerprint(content)
-                # Exact match
-                if curr_fingerprint == prev_fingerprint:
-                    return True
-                # Very similar (one contains the other with minor differences)
-                if len(curr_fingerprint) > 50 and len(prev_fingerprint) > 50:
-                    # Check if one is a subset of the other (for task lists)
-                    if (
-                        curr_fingerprint in prev_fingerprint
-                        or prev_fingerprint in curr_fingerprint
-                    ):
-                        return True
-                return False
+                # Normalize: lowercase, remove extra whitespace, take first 200 chars
+                return " ".join(content.lower().split())[:200]
 
             logger.info("🔥 Streaming agent response")
+
+            # Track if we've triggered revalidation (only once per request)
+            has_revalidated = False
 
             async for event in stream_agent_response(agent_context, result):
                 event_count += 1
 
-                # Skip duplicate assistant messages (prevents issues from ChatKit retries)
+                # Trigger revalidation immediately after any item is added to the thread
+                if (
+                    not has_revalidated
+                    and hasattr(event, "type")
+                    and event.type == "thread.item.added"
+                ):
+                    import asyncio
+                    asyncio.create_task(trigger_frontend_revalidation("chatbot_tool_call"))
+                    has_revalidated = True
+                    logger.info("⚡ Triggered fast revalidation after item added")
+
+                # DEDUPLICATION LOGIC
                 if (
                     hasattr(event, "item")
                     and hasattr(event, "type")
                     and event.type == "thread.item.done"
+                    and event.item.type == "assistant_message"
                 ):
-                    if event.item.type == "assistant_message":
-                        # Extract content for deduplication
-                        content = ""
-                        if hasattr(event.item, "content") and event.item.content:
-                            # Handle different content formats
-                            if isinstance(event.item.content, list):
-                                content = "".join(
-                                    c.get("text", "") if isinstance(c, dict) else str(c)
-                                    for c in event.item.content
-                                )
-                            elif isinstance(event.item.content, dict):
-                                content = event.item.content.get("text", "")
-                            else:
-                                content = str(event.item.content)
-
-                        # Filter out tool response messages (show only agent conversational responses)
-                        if content.strip() and is_tool_response(content):
-                            logger.info(
-                                f"⏭️ Filtering out tool response: {content[:50]}..."
+                    # Extract content
+                    content = ""
+                    if hasattr(event.item, "content") and event.item.content:
+                        if isinstance(event.item.content, list):
+                            content = "".join(
+                                c.get("text", "") if isinstance(c, dict) else str(c)
+                                for c in event.item.content
                             )
-                            # Still track it to avoid duplicate processing
-                            content_hash = content.strip()[:100]
-                            seen_message_content.add(content_hash)
-                            # Skip yielding this event to the user
-                            continue
+                        elif isinstance(event.item.content, dict):
+                            content = event.item.content.get("text", "")
+                        else:
+                            content = str(event.item.content)
 
-                        # Check for near-duplicate content (same message appearing twice)
-                        if is_near_duplicate(content, last_content_fingerprint):
-                            logger.info(
-                                f"⏭️ Skipping near-duplicate message: {content[:50]}..."
-                            )
-                            content_hash = content.strip()[:100]
-                            seen_message_content.add(content_hash)
-                            continue
+                    if not content.strip():
+                        continue
 
-                        # Update fingerprint after processing
-                        last_content_fingerprint = get_content_fingerprint(content)
+                    fingerprint = get_content_fingerprint(content)
 
-                        content_hash = content.strip()[
-                            :100
-                        ]  # Use first 100 chars as hash
-                        if content_hash in seen_message_content:
-                            logger.warning(
-                                f"⏭️ Skipping duplicate message: {content_hash[:30]}..."
-                            )
-                            continue
-                        seen_message_content.add(content_hash)
+                    # BLOCK DUPLICATES: If we've seen this exact content (or very near it)
+                    # in this session, skip yielding the event entirely.
+                    if fingerprint in sent_message_fingerprints:
+                        logger.warning(f"🚫 BLOCKED DUPLICATE: {fingerprint[:50]}...")
+                        continue
 
-                # Save assistant message on thread.item.done event (only once per ID)
-                if (
-                    hasattr(event, "item")
-                    and hasattr(event, "type")
-                    and event.type == "thread.item.done"
-                ):
-                    if event.item.type == "assistant_message":
-                        try:
-                            # CRITICAL FIX: ChatKit uses __fake_id__ during streaming
-                            # Generate a real unique ID before saving
-                            if event.item.id == "__fake_id__":
-                                real_id = self.store.generate_item_id(
-                                    "message", thread, context
-                                )
-                                event.item.id = real_id
+                    # Also check near-duplicates against the last sent message
+                    if last_content_fingerprint and (fingerprint in last_content_fingerprint or last_content_fingerprint in fingerprint):
+                        logger.warning(f"🚫 BLOCKED NEAR-DUPLICATE: {fingerprint[:50]}...")
+                        continue
 
-                            # Only save if we haven't saved this message yet
-                            if event.item.id not in saved_message_ids:
-                                await self.store.add_thread_item(
-                                    thread.id, event.item, context
-                                )
-                                saved_message_ids.add(event.item.id)
-                                logger.info(
-                                    f"✅ Saved assistant message {event.item.id}"
-                                )
-                            else:
-                                logger.debug(
-                                    f"⏭️ Skipping duplicate save for {event.item.id}"
-                                )
+                    # Record this message as sent
+                    sent_message_fingerprints.add(fingerprint)
+                    last_content_fingerprint = fingerprint
+                    logger.info(f"📤 Agent message: {content[:100]}...")
 
-                        except Exception as save_err:
-                            logger.error(
-                                f"❌ Failed to save assistant message: {save_err}"
-                            )
+                    # CRITICAL FIX: Ensure we only save and yield if it's the first time
+                    try:
+                        if event.item.id == "__fake_id__":
+                            event.item.id = self.store.generate_item_id("message", thread, context)
+
+                        if event.item.id not in saved_message_ids:
+                            await self.store.add_thread_item(thread.id, event.item, context)
+                            saved_message_ids.add(event.item.id)
+                    except Exception as save_err:
+                        logger.error(f"❌ Failed to save assistant message: {save_err}")
 
                 yield event
 
@@ -588,9 +536,11 @@ user_id is always: "{user_id}"
                 f"🏁 Streaming complete - Saved {len(saved_message_ids)} unique assistant messages"
             )
 
-            # Trigger frontend revalidation after streaming completes
-            # This ensures the UI updates with any task changes made by the chatbot
-            await trigger_frontend_revalidation("chatbot_task_change")
+            # Fallback: trigger revalidation at end if we didn't do it earlier
+            # This handles cases where no tool calls were made
+            if not has_revalidated:
+                await trigger_frontend_revalidation("chatbot_completion")
+                logger.info("⚡ Triggered fallback revalidation at completion")
 
         except Exception as e:
             logger.error(f"Error in respond: {e}", exc_info=True)
@@ -601,3 +551,11 @@ user_id is always: "{user_id}"
                 message=f"Failed to process request: {str(e)}",
                 allow_retry=True,
             )
+        finally:
+            # Ensure MCP server is properly disconnected in the same task context
+            if mcp_server is not None:
+                try:
+                    await mcp_server.cleanup()
+                    logger.info("✅ MCP server cleaned up successfully")
+                except Exception as cleanup_err:
+                    logger.warning(f"⚠️ Error cleaning up MCP server: {cleanup_err}")
