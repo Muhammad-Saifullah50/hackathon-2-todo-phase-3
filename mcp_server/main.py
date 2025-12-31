@@ -11,6 +11,7 @@ from typing import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from mcp.server.fastmcp import FastMCP
 
 # Import environment setup
@@ -41,11 +42,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 
 # Create FastAPI app for Vercel
-# Disable redirect_slashes to prevent 307 redirects that trigger Vercel 421 errors
 app = FastAPI(
     title="MCP Task Server",
     lifespan=lifespan,
     redirect_slashes=False,
+)
+
+# Trusted hosts to prevent 421 Misdirected Request
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=["todomore-mcp.vercel.app", "*.vercel.app", "localhost", "127.0.0.1"]
 )
 
 # CORS for MCP clients
