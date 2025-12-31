@@ -1,11 +1,17 @@
 {
   "version": 2,
-  "buildCommand": "pip install -r ../backend/requirements.txt",
+  "buildCommand": "pip install -r requirements.txt",
   "framework": "fastapi",
   "rewrites": [
     {
       "source": "/(.*)",
       "destination": "main.py"
     }
-  ]
+  ],
+  "functions": {
+    "main.py": {
+      "maxDuration": 60,
+      "supportsResponseStreaming": true
+    }
+  }
 }

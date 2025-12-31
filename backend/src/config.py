@@ -10,12 +10,16 @@ def _get_mcp_server_url() -> str:
     Priority:
     1. MCP_VERCEL_URL (separate MCP deployment)
     2. Localhost if set via MCP_HOST/PORT
-    3. Production Vercel URL (Fallback)
+    3. Production Vercel URL (Fallback - only if not standalone)
     """
     # Check for separate MCP server deployment URL
     mcp_url = os.getenv("MCP_VERCEL_URL")
     if mcp_url:
-        return f"https://{mcp_url}/mcp"
+        # Handle if user provides full URL or just domain
+        if mcp_url.startswith("http"):
+            base = mcp_url.rstrip("/")
+            return base if base.endswith("/mcp") else f"{base}/mcp"
+        return f"https://{mcp_url.rstrip('/')}/mcp"
 
     # For local development
     host = os.getenv("MCP_HOST", "localhost")
@@ -23,9 +27,9 @@ def _get_mcp_server_url() -> str:
     if os.getenv("ENVIRONMENT") != "production":
         return f"http://{host}:{port}/mcp"
 
-    # Fall back to current vercel URL (mostly for legacy/monolith mode)
+    # Fall back to current vercel URL only if not explicitly standalone
     vercel_url = os.getenv("VERCEL_URL")
-    if vercel_url:
+    if vercel_url and os.getenv("MCP_STANDALONE") != "true":
         return f"https://{vercel_url}/mcp"
 
     return f"http://{host}:{port}/mcp"
@@ -33,9 +37,18 @@ def _get_mcp_server_url() -> str:
 
 def _get_mcp_root_url() -> str:
     """Build MCP root URL dynamically based on environment."""
+    # Use direct MCP URL if provided
+    mcp_url = os.getenv("MCP_VERCEL_URL")
+    if mcp_url:
+        if mcp_url.startswith("http"):
+            return mcp_url.rstrip("/")
+        return f"https://{mcp_url.rstrip('/')}"
+
+    # Fallback to current project Vercel URL
     vercel_url = os.getenv("VERCEL_URL")
     if vercel_url:
         return f"https://{vercel_url}"
+
     host = os.getenv("MCP_HOST", "localhost")
     port = os.getenv("MCP_PORT", "8000")
     return f"http://{host}:{port}"

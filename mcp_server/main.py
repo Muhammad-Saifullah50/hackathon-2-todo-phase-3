@@ -5,6 +5,7 @@ Tools are defined locally in tools.py (no backend dependency).
 """
 
 import os
+import contextlib
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
@@ -31,7 +32,11 @@ elif os.path.exists(backend_env_path):
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Lifespan for MCP server."""
     print("MCP Server starting up...")
-    yield
+    async with contextlib.AsyncExitStack() as stack:
+        # CRITICAL: Start the session manager task group for streamable HTTP
+        # This is required when mounting the app inside FastAPI
+        await stack.enter_async_context(mcp.session_manager.run())
+        yield
     print("MCP Server shutting down...")
 
 
@@ -45,14 +50,20 @@ app = FastAPI(
 frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[frontend_url, "http://localhost:3000"],
+    allow_origins=["*", frontend_url, "http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Mcp-Session-Id"],
 )
 
-# Create MCP server instance
-mcp = FastMCP("Task Management Server")
+# Create MCP server instance with stateless configuration for serverless/production
+mcp = FastMCP(
+    "Task Management Server",
+    stateless_http=True,
+    json_response=True,
+    streamable_http_path="/",  # Map internal routes to mount point root
+)
 
 
 # Import tools from local tools.py
@@ -145,6 +156,7 @@ async def root():
         "status": "ok",
         "service": "MCP Task Server",
         "endpoints": {"mcp": "/mcp", "health": "/health"},
+        "config": {"stateless": True}
     }
 
 
