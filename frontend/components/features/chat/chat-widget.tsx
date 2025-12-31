@@ -6,8 +6,8 @@ import { X, MessageCircle } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { useChatTaskSync } from "@/hooks/useChatTaskSync";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:9000";
-const DOMAIN_KEY = process.env.NEXT_PUBLIC_CHATKIT_DOMAIN_KEY || "todomore-app";
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000";
+const DOMAIN_KEY = process.env.NEXT_PUBLIC_OPENAI_DOMAIN_KEY || "todomore-app";
 
 export function ChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
