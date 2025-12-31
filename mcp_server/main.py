@@ -41,9 +41,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 
 # Create FastAPI app for Vercel
+# Disable redirect_slashes to prevent 307 redirects that trigger Vercel 421 errors
 app = FastAPI(
     title="MCP Task Server",
     lifespan=lifespan,
+    redirect_slashes=False,
 )
 
 # CORS for MCP clients

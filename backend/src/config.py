@@ -25,7 +25,7 @@ def _get_mcp_server_url() -> str:
     host = os.getenv("MCP_HOST", "localhost")
     port = os.getenv("MCP_PORT", "8000")
     if os.getenv("ENVIRONMENT") != "production":
-        return f"http://{host}:{port}/mcp"
+        return f"http://{host}:{port}"
 
     # Fall back to current vercel URL only if not explicitly standalone
     vercel_url = os.getenv("VERCEL_URL")
