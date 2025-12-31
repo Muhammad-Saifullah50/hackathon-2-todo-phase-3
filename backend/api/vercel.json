@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "buildCommand": "pip install -r requirements.txt",
+  "framework": "fastapi",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "api/mcp.py"
+    }
+  ]
+}
