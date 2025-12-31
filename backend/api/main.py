@@ -70,11 +70,7 @@ app.include_router(recurring.router, prefix="/api/v1")
 app.include_router(templates.router, prefix="/api/v1")
 app.include_router(chatkit_router)  # ChatKit integration endpoint
 
-# Mount MCP server at /mcp endpoint for Streamable HTTP transport
-# The MCP app handles GET (sse/stream) and POST (messages) for MCP protocol
-app.mount("/mcp", mcp.streamable_http_app())
-
-
+# MCP server info endpoint (must be before mount to avoid conflict)
 @app.get("/mcp/info", include_in_schema=False)
 async def mcp_info() -> HTMLResponse:
     """Return MCP server information and connection details."""
@@ -102,6 +98,10 @@ async def mcp_info() -> HTMLResponse:
         </body>
     </html>
     """)
+
+# Mount MCP server at /mcp endpoint for Streamable HTTP transport
+# The MCP app handles GET (sse/stream) and POST (messages) for MCP protocol
+app.mount("/mcp", mcp.streamable_http_app())
 
 
 if __name__ == "__main__":
