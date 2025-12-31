@@ -4,7 +4,6 @@ Note: MCP server is deployed separately at a different URL.
 The chat server connects to the external MCP server URL.
 """
 
-import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
