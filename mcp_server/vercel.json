@@ -7,10 +7,5 @@
       "source": "/(.*)",
       "destination": "main.py"
     }
-  ],
-  "functions": {
-    "main.py": {
-      "maxDuration": 60
-    }
-  }
+  ]
 }
