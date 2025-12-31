@@ -59,85 +59,84 @@ async def add_task(
     """Add a new task to the user's task list."""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        try:
-            # Parse due date
-            parsed_due_date = None
-            if due_date:
-                # Simple date parsing
-                from dateutil import parser
-                try:
-                    parsed_due_date = parser.parse(due_date)
-                except:
-                    return {"error": f"Invalid date format: {due_date}", "success": False}
+        async with conn.transaction():
+            try:
+                # Parse due date
+                parsed_due_date = None
+                if due_date:
+                    # Simple date parsing
+                    from dateutil import parser
+                    try:
+                        parsed_due_date = parser.parse(due_date)
+                    except:
+                        return {"error": f"Invalid date format: {due_date}", "success": False}
 
-            # Validate priority
-            priority_lower = priority.lower()
-            if priority_lower not in ["low", "medium", "high"]:
-                return {
-                    "error": f"Invalid priority '{priority}'. Must be 'low', 'medium', or 'high'.",
-                    "success": False,
-                }
+                # Validate priority
+                priority_lower = priority.lower()
+                if priority_lower not in ["low", "medium", "high"]:
+                    return {
+                        "error": f"Invalid priority '{priority}'. Must be 'low', 'medium', or 'high'.",
+                        "success": False,
+                    }
 
-            # Create task
-            task_id = f"task_{uuid.uuid4().hex[:12]}"
-            now = datetime.now(timezone.utc)
+                # Create task
+                task_id = f"task_{uuid.uuid4().hex[:12]}"
+                now = datetime.now(timezone.utc)
 
-            await conn.execute(
-                """
-                INSERT INTO tasks (id, user_id, title, description, priority, due_date, status, created_at, updated_at)
-                VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, $7)
-                """,
-                task_id, user_id, title, description, priority_lower, parsed_due_date, now
-            )
+                await conn.execute(
+                    """
+                    INSERT INTO tasks (id, user_id, title, description, priority, due_date, status, created_at, updated_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, $7)
+                    """,
+                    task_id, user_id, title, description, priority_lower, parsed_due_date, now
+                )
 
-            # Add tags
-            task_tags = []
-            if tags:
-                for tag_name in tags:
-                    # Get or create tag
-                    tag_id = f"tag_{uuid.uuid4().hex[:8]}"
-                    tag_color = "#3B82F6"
+                # Add tags
+                task_tags = []
+                if tags:
+                    for tag_name in tags:
+                        # Get or create tag
+                        tag_id = f"tag_{uuid.uuid4().hex[:8]}"
+                        tag_color = "#3B82F6"
 
-                    # Check if tag exists
-                    existing = await conn.fetchrow(
-                        "SELECT id FROM tags WHERE user_id = $1 AND LOWER(name) = $2",
-                        user_id, tag_name.lower()
-                    )
-
-                    if existing:
-                        tag_id = existing["id"]
-                    else:
-                        await conn.execute(
-                            "INSERT INTO tags (id, user_id, name, color, created_at) VALUES ($1, $2, $3, $4, $5)",
-                            tag_id, user_id, tag_name, tag_color, now
+                        # Check if tag exists
+                        existing = await conn.fetchrow(
+                            "SELECT id FROM tags WHERE user_id = $1 AND LOWER(name) = $2",
+                            user_id, tag_name.lower()
                         )
 
-                    # Add tag to task
-                    await conn.execute(
-                        "INSERT INTO task_tags (task_id, tag_id) VALUES ($1, $2)",
-                        task_id, tag_id
-                    )
-                    task_tags.append(tag_name)
+                        if existing:
+                            current_tag_id = existing["id"]
+                        else:
+                            current_tag_id = tag_id
+                            await conn.execute(
+                                "INSERT INTO tags (id, user_id, name, color, created_at) VALUES ($1, $2, $3, $4, $5)",
+                                current_tag_id, user_id, tag_name, tag_color, now
+                            )
 
-            await conn.commit()
+                        # Add tag to task
+                        await conn.execute(
+                            "INSERT INTO task_tags (task_id, tag_id) VALUES ($1, $2)",
+                            task_id, current_tag_id
+                        )
+                        task_tags.append(tag_name)
 
-            return {
-                "success": True,
-                "task": {
-                    "id": task_id,
-                    "title": title,
-                    "description": description,
-                    "status": "pending",
-                    "priority": priority_lower,
-                    "due_date": parsed_due_date.isoformat() if parsed_due_date else None,
-                    "created_at": now.isoformat(),
-                    "tags": task_tags,
-                },
-                "message": f"✅ Task '{title}' created successfully",
-            }
-        except Exception as e:
-            await conn.rollback()
-            return {"error": str(e), "success": False}
+                return {
+                    "success": True,
+                    "task": {
+                        "id": task_id,
+                        "title": title,
+                        "description": description,
+                        "status": "pending",
+                        "priority": priority_lower,
+                        "due_date": parsed_due_date.isoformat() if parsed_due_date else None,
+                        "created_at": now.isoformat(),
+                        "tags": task_tags,
+                    },
+                    "message": f"✅ Task '{title}' created successfully",
+                }
+            except Exception as e:
+                return {"error": str(e), "success": False}
 
 
 async def list_tasks(
@@ -154,7 +153,7 @@ async def list_tasks(
             query = """
                 SELECT t.id, t.user_id, t.title, t.description, t.priority,
                        t.due_date, t.status, t.created_at, t.completed_at,
-                       COALESCE(json_agg(json_build_object('id', tags.id, 'name', tags.name)), '[]') as tags
+                       COALESCE(json_agg(json_build_object('id', tags.id, 'name', tags.name)) FILTER (WHERE tags.id IS NOT NULL), '[]') as tags
                 FROM tasks t
                 LEFT JOIN task_tags tt ON t.id = tt.task_id
                 LEFT JOIN tags ON tt.tag_id = tags.id
@@ -177,15 +176,14 @@ async def list_tasks(
 
             rows = await conn.fetch(query, *params)
 
-            tasks = []
+            tasks_list = []
             for row in rows:
-                # Parse tags JSON
+                # Get tags list from JSON
                 row_tags = row["tags"]
                 if isinstance(row_tags, str):
-                    import json
                     row_tags = json.loads(row_tags)
 
-                tasks.append({
+                tasks_list.append({
                     "id": row["id"],
                     "title": row["title"],
                     "description": row["description"],
@@ -194,14 +192,14 @@ async def list_tasks(
                     "due_date": row["due_date"].isoformat() if row["due_date"] else None,
                     "created_at": row["created_at"].isoformat(),
                     "completed_at": row["completed_at"].isoformat() if row["completed_at"] else None,
-                    "tags": [t["name"] for t in row_tags if t["id"]],
+                    "tags": [t["name"] for t in row_tags if "name" in t],
                 })
 
             return {
                 "success": True,
-                "tasks": tasks,
-                "count": len(tasks),
-                "message": f"Found {len(tasks)} task(s)",
+                "tasks": tasks_list,
+                "count": len(tasks_list),
+                "message": f"Found {len(tasks_list)} task(s)",
             }
         except Exception as e:
             return {"error": str(e), "success": False}
@@ -214,40 +212,39 @@ async def complete_task(
     """Mark a task as complete."""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        try:
-            # Check task exists
-            task = await conn.fetchrow(
-                "SELECT * FROM tasks WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL",
-                task_id, user_id
-            )
+        async with conn.transaction():
+            try:
+                # Check task exists
+                task = await conn.fetchrow(
+                    "SELECT * FROM tasks WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL",
+                    task_id, user_id
+                )
 
-            if not task:
-                return {"error": f"Task with ID '{task_id}' not found", "success": False}
+                if not task:
+                    return {"error": f"Task with ID '{task_id}' not found", "success": False}
 
-            if task["status"] == "completed":
-                return {"error": f"Task '{task['title']}' is already completed", "success": False}
+                if task["status"] == "completed":
+                    return {"error": f"Task '{task['title']}' is already completed", "success": False}
 
-            now = datetime.now(timezone.utc)
+                now = datetime.now(timezone.utc)
 
-            await conn.execute(
-                "UPDATE tasks SET status = 'completed', completed_at = $1, updated_at = $1 WHERE id = $2",
-                now, task_id
-            )
-            await conn.commit()
+                await conn.execute(
+                    "UPDATE tasks SET status = 'completed', completed_at = $1, updated_at = $1 WHERE id = $2",
+                    now, task_id
+                )
 
-            return {
-                "success": True,
-                "task": {
-                    "id": task_id,
-                    "title": task["title"],
-                    "status": "completed",
-                    "completed_at": now.isoformat(),
-                },
-                "message": f"✅ Task '{task['title']}' marked as complete",
-            }
-        except Exception as e:
-            await conn.rollback()
-            return {"error": str(e), "success": False}
+                return {
+                    "success": True,
+                    "task": {
+                        "id": task_id,
+                        "title": task["title"],
+                        "status": "completed",
+                        "completed_at": now.isoformat(),
+                    },
+                    "message": f"✅ Task '{task['title']}' marked as complete",
+                }
+            except Exception as e:
+                return {"error": str(e), "success": False}
 
 
 async def delete_task(
@@ -257,31 +254,30 @@ async def delete_task(
     """Delete a task (soft delete)."""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        try:
-            task = await conn.fetchrow(
-                "SELECT * FROM tasks WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL",
-                task_id, user_id
-            )
+        async with conn.transaction():
+            try:
+                task = await conn.fetchrow(
+                    "SELECT * FROM tasks WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL",
+                    task_id, user_id
+                )
 
-            if not task:
-                return {"error": f"Task with ID '{task_id}' not found", "success": False}
+                if not task:
+                    return {"error": f"Task with ID '{task_id}' not found", "success": False}
 
-            now = datetime.now(timezone.utc)
+                now = datetime.now(timezone.utc)
 
-            await conn.execute(
-                "UPDATE tasks SET deleted_at = $1 WHERE id = $2",
-                now, task_id
-            )
-            await conn.commit()
+                await conn.execute(
+                    "UPDATE tasks SET deleted_at = $1 WHERE id = $2",
+                    now, task_id
+                )
 
-            return {
-                "success": True,
-                "task": {"id": task_id, "title": task["title"], "status": "deleted"},
-                "message": f"🗑️ Task '{task['title']}' deleted",
-            }
-        except Exception as e:
-            await conn.rollback()
-            return {"error": str(e), "success": False}
+                return {
+                    "success": True,
+                    "task": {"id": task_id, "title": task["title"], "status": "deleted"},
+                    "message": f"🗑️ Task '{task['title']}' deleted",
+                }
+            except Exception as e:
+                return {"error": str(e), "success": False}
 
 
 async def update_task(
