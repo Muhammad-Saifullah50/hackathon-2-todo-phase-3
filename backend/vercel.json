@@ -1,21 +1,11 @@
 {
   "version": 2,
+  "buildCommand": "pip install -r requirements.txt",
+  "framework": "fastapi",
   "rewrites": [
-    {
-      "source": "/mcp/(.*)",
-      "destination": "api/mcp.py"
-    },
     {
       "source": "/(.*)",
       "destination": "api/main.py"
     }
-  ],
-  "functions": {
-    "api/*.py": {
-      "maxDuration": 60
-    }
-  }
+  ]
 }
-
-
-
