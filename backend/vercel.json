@@ -3,15 +3,15 @@
   "rewrites": [
     {
       "source": "/mcp/(.*)",
-      "destination": "src/mcp_server/vercel_mcp.py"
+      "destination": "api/mcp.py"
     },
     {
       "source": "/(.*)",
-      "destination": "src/main.py"
+      "destination": "api/main.py"
     }
   ],
   "functions": {
-    "src/mcp_server/vercel_mcp.py": {
+    "api/mcp.py": {
       "maxDuration": 60
     }
   }
