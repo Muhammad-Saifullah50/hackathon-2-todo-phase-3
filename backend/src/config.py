@@ -16,10 +16,10 @@ def _get_mcp_server_url() -> str:
     mcp_url = os.getenv("MCP_VERCEL_URL")
     if mcp_url:
         # Handle if user provides full URL or just domain
+        # Standalone MCP server is now mounted at / root
         if mcp_url.startswith("http"):
-            base = mcp_url.rstrip("/")
-            return base if base.endswith("/mcp") else f"{base}/mcp"
-        return f"https://{mcp_url.rstrip('/')}/mcp"
+            return mcp_url.rstrip("/")
+        return f"https://{mcp_url.rstrip('/')}"
 
     # For local development
     host = os.getenv("MCP_HOST", "localhost")

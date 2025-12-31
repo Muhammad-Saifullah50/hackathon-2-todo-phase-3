@@ -145,19 +145,9 @@ async def update_task(
     )
 
 
-# Mount MCP at /mcp endpoint
-app.mount("/mcp", mcp.streamable_http_app())
-
-
-@app.get("/")
-async def root():
-    """Health check endpoint."""
-    return {
-        "status": "ok",
-        "service": "MCP Task Server",
-        "endpoints": {"mcp": "/mcp", "health": "/health"},
-        "config": {"stateless": True}
-    }
+# Mount MCP at root (standalone style for separate Vercel project)
+# This avoids the /mcp to /mcp/ redirect that triggers 421 Misdirected Request errors on Vercel
+app.mount("/", mcp.streamable_http_app())
 
 
 @app.get("/health")
