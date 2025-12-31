@@ -85,8 +85,8 @@ export function ChatInterface({ conversationId, className }: ChatInterfaceProps)
   // Configure ChatKit with our backend endpoint
   const { control } = useChatKit({
     api: {
-      url: `${BACKEND_URL}/api/v1/chatkit`,
-      domainKey: process.env.NEXT_PUBLIC_OPENAI_DOMAIN_KEY!, // Required: verify registered domain
+      url: `${BACKEND_URL}/chatkit`,
+      domainKey: process.env.NEXT_PUBLIC_OPENAI_DOMAIN_KEY || "todomore", // Required: verify registered domain
       fetch: authenticatedFetch,
     },
 
