@@ -9,21 +9,25 @@ def _get_mcp_server_url() -> str:
 
     Priority:
     1. MCP_VERCEL_URL (separate MCP deployment)
-    2. VERCEL_URL + /mcp (same deployment, different path)
-    3. localhost:8000/mcp (local development)
+    2. Localhost if set via MCP_HOST/PORT
+    3. Production Vercel URL (Fallback)
     """
     # Check for separate MCP server deployment URL
     mcp_url = os.getenv("MCP_VERCEL_URL")
     if mcp_url:
         return f"https://{mcp_url}/mcp"
 
-    # Fall back to same deployment
+    # For local development
+    host = os.getenv("MCP_HOST", "localhost")
+    port = os.getenv("MCP_PORT", "8000")
+    if os.getenv("ENVIRONMENT") != "production":
+        return f"http://{host}:{port}/mcp"
+
+    # Fall back to current vercel URL (mostly for legacy/monolith mode)
     vercel_url = os.getenv("VERCEL_URL")
     if vercel_url:
         return f"https://{vercel_url}/mcp"
 
-    host = os.getenv("MCP_HOST", "localhost")
-    port = os.getenv("MCP_PORT", "8000")
     return f"http://{host}:{port}/mcp"
 
 
