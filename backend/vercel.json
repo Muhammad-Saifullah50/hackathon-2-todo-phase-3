@@ -11,7 +11,7 @@
     }
   ],
   "functions": {
-    "api/mcp.py": {
+    "api/*.py": {
       "maxDuration": 60
     }
   }
