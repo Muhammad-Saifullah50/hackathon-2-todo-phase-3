@@ -292,8 +292,6 @@ user_id is always: "{user_id}"
             model=LitellmModel(
                 model="gemini/gemini-2.5-flash-lite",
                 api_key=settings.GEMINI_API_KEY,
-                # model="openrouter/qwen/qwen3-coder",
-                # api_key=settings.OPENROUTER_API_KEY,
             ),
             model_settings=ModelSettings(
                 include_usage=True,

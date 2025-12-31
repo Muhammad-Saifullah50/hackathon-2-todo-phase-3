@@ -86,7 +86,7 @@ export function ChatInterface({ conversationId, className }: ChatInterfaceProps)
   const { control } = useChatKit({
     api: {
       url: `${BACKEND_URL}/api/v1/chatkit`,
-      domainKey: "todomore-app", // Required: verify registered domain
+      domainKey: process.env.NEXT_PUBLIC_OPENAI_DOMAIN_KEY!, // Required: verify registered domain
       fetch: authenticatedFetch,
     },
 
