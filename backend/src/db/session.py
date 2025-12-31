@@ -77,14 +77,21 @@ class DatabaseSessionManager:
 
 
 def _get_engine_kwargs() -> dict:
-    """Get engine kwargs based on database URL."""
+    """Get engine kwargs based on database URL and environment."""
     # SQLite doesn't support connection pooling
     if settings.DATABASE_URL.startswith("sqlite"):
         return {"echo": settings.LOG_LEVEL == "DEBUG"}
+
+    # Serverless/Vercel-friendly settings
+    # - pool_pre_ping: validates connection before use (fixes "connection is closed")
+    # - pool_recycle: lower value for serverless (300s instead of 3600s)
+    # - pool_size=0: let pool manage connections dynamically
+    # - max_overflow=0: no overflow connections in serverless
     return {
-        "pool_size": 5,
-        "max_overflow": 10,
-        "pool_recycle": 3600,
+        "pool_size": 0,
+        "max_overflow": 0,
+        "pool_pre_ping": True,
+        "pool_recycle": 300,
         "echo": settings.LOG_LEVEL == "DEBUG",
     }
 

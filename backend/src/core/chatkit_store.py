@@ -37,13 +37,24 @@ class NeonChatKitStore(Store[Dict[str, Any]]):
         self._pool: Optional[asyncpg.Pool] = None
 
     async def get_pool(self) -> asyncpg.Pool:
-        """Get or create connection pool for database operations."""
+        """Get or create connection pool for database operations.
+
+        Uses serverless-friendly settings for Vercel/Neon:
+        - keepalives: TCP keepalive for idle connections
+        - max_inactive_connection_lifetime: Recycle connections periodically
+        """
         if self._pool is None:
             self._pool = await asyncpg.create_pool(
                 self.connection_string,
-                min_size=2,
-                max_size=10,
-                command_timeout=60
+                min_size=1,
+                max_size=5,
+                command_timeout=60,
+                # Serverless/Vercel-friendly settings
+                keepalives=1,
+                keepalives_idle=30,
+                keepalives_interval=5,
+                keepalives_count=3,
+                max_inactive_connection_lifetime=60,  # Recycle after 60s of inactivity
             )
         return self._pool
 
