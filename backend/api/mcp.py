@@ -11,8 +11,12 @@ Usage:
 """
 
 import os
+import sys
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
+
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
