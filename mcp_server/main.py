@@ -11,7 +11,7 @@ from typing import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from mcp.server.fastmcp import FastMCP
 
 # Import environment setup
@@ -33,7 +33,7 @@ mcp = FastMCP(
     "Task Management Server",
     stateless_http=True,
     json_response=True,
-    streamable_http_path="/",  # Map internal routes to mount point root
+    streamable_http_path="/",  # Mount at root, then mount to /mcp path
 )
 
 
@@ -424,15 +424,27 @@ async def update_task(
             return {"error": str(e), "success": False}
 
 
-# Health check endpoint
-@app.get("/health")
+# For Vercel, we use the MCP app as the main app
+# Add health and root endpoints to the MCP app
+mcp_app = mcp.streamable_http_app()
+
+# Add CORS to mcp_app
+frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+mcp_app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["Mcp-Session-Id", "Content-Type"],
+)
+
+@mcp_app.get("/health")
 async def health():
     """Health check endpoint."""
     return {"status": "healthy", "service": "mcp-task-server"}
 
-
-# Root endpoint to provide info
-@app.get("/")
+@mcp_app.get("/")
 async def root():
     """Root endpoint."""
     return {
@@ -442,6 +454,18 @@ async def root():
     }
 
 
-# Mount MCP at /mcp instead of root to avoid Vercel's 421 errors
-# Vercel has issues with SSE streaming at the root path
-app.mount("/mcp", mcp.streamable_http_app())
+# Middleware to handle /mcp prefix - strip it before routing to mcp_app
+class MCPPathMiddleware(BaseHTTPMiddleware):
+    """Strip /mcp prefix from incoming requests."""
+
+    async def dispatch(self, scope, receive, send):
+        if scope["type"] == "http":
+            path = scope["path"]
+            # If path starts with /mcp, remove it and route to mcp_app
+            if path.startswith("/mcp"):
+                scope["path"] = path[4:] if len(path) > 4 else "/"
+        await self.app(scope, receive, send)
+
+
+# Apply middleware and export for Vercel
+app = MCPPathMiddleware(mcp_app)
