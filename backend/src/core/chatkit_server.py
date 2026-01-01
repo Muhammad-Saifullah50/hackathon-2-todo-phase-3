@@ -210,7 +210,10 @@ class TodoMoreChatKitServer(ChatKitServer):
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 async with asyncio.timeout(5):  # 5 second total timeout
-                    response = await client.get(f"{settings.MCP_SERVER_URL}/health")
+                    # Use root URL for health check, not the MCP endpoint URL
+                    health_url = f"{settings.MCP_SERVER_ROOT_URL}/health"
+                    logger.info(f"Checking MCP health at: {health_url}")
+                    response = await client.get(health_url)
                     if response.status_code == 200:
                         logger.info("✅ MCP server health check passed")
                         return True
