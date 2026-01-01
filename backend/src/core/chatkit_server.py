@@ -198,6 +198,69 @@ class TodoMoreChatKitServer(ChatKitServer):
 
         # Agent will be created per request
 
+    async def _check_mcp_health(self) -> bool:
+        """Check if MCP server is healthy and accessible.
+
+        Returns:
+            True if MCP server is accessible, False otherwise
+        """
+        import httpx
+        import asyncio
+
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                async with asyncio.timeout(5):  # 5 second total timeout
+                    response = await client.get(f"{settings.MCP_SERVER_URL}/health")
+                    if response.status_code == 200:
+                        logger.info("✅ MCP server health check passed")
+                        return True
+                    else:
+                        logger.warning(f"⚠️ MCP server health check failed: {response.status_code}")
+                        return False
+        except (httpx.HTTPError, asyncio.TimeoutError) as e:
+            logger.warning(f"⚠️ MCP server health check failed: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"❌ Unexpected error during MCP health check: {e}")
+            return False
+
+    async def _create_agent_without_mcp(self, user_id: str) -> Agent:
+        """Create agent without MCP tools as fallback.
+
+        Args:
+            user_id: Authenticated user ID
+
+        Returns:
+            Agent instance without MCP tools
+        """
+        logger.warning("⚠️ Creating agent WITHOUT MCP tools (degraded mode)")
+
+        agent = Agent(
+            name="TodoBot",
+            instructions=f"""You are TodoBot, a friendly task management assistant.
+
+            ⚠️ IMPORTANT: You are currently in degraded mode and cannot access task management tools.
+            Please inform the user that the task management system is temporarily unavailable and ask them to try again in a moment.
+
+            Be apologetic and friendly. Suggest they:
+            1. Try refreshing the page
+            2. Wait a moment and try again
+            3. Contact support if the issue persists
+
+            user_id: {user_id}
+            """,
+            model=LitellmModel(
+                model="gemini/gemini-2.5-flash-lite",
+                api_key=settings.GEMINI_API_KEY,
+            ),
+            model_settings=ModelSettings(
+                temperature=0.7,
+                max_tokens=512,
+            ),
+        )
+
+        return agent
+
     async def _create_agent_with_mcp(self, user_id: str) -> tuple[Agent, Any]:
         """Create and configure the agent with FastMCP server.
 
@@ -206,22 +269,40 @@ class TodoMoreChatKitServer(ChatKitServer):
 
         Returns:
             Tuple of (Agent instance, MCP server instance)
-        """
-        # Create MCP server connection
-        mcp_server = MCPServerStreamableHttp(
-            name="Task Management Server",
-            params={
-                "url": settings.MCP_SERVER_URL,
-                "headers": {"Authorization": f"Bearer {settings.MCP_SERVER_TOKEN}"},
-                "timeout": 30,
-            },
-            cache_tools_list=True,
-            max_retry_attempts=3,
-        )
 
-        # Connect to MCP server before creating agent
-        await mcp_server.connect()
-        logger.info("Connected to MCP server: %s", settings.MCP_SERVER_URL)
+        Raises:
+            Exception: If MCP server connection fails
+        """
+        import httpx
+        import asyncio
+
+        # Create MCP server connection with error handling
+        try:
+            mcp_server = MCPServerStreamableHttp(
+                name="Task Management Server",
+                params={
+                    "url": settings.MCP_SERVER_URL,
+                    "headers": {"Authorization": f"Bearer {settings.MCP_SERVER_TOKEN}"},
+                    "timeout": 30,
+                },
+                cache_tools_list=True,
+                max_retry_attempts=3,
+            )
+
+            # Connect to MCP server with timeout
+            async with asyncio.timeout(10):  # 10 second timeout
+                await mcp_server.connect()
+                logger.info("✅ Connected to MCP server: %s", settings.MCP_SERVER_URL)
+
+        except asyncio.TimeoutError:
+            logger.error("❌ MCP server connection timeout after 10s")
+            raise Exception(f"MCP server at {settings.MCP_SERVER_URL} connection timeout")
+        except httpx.HTTPStatusError as e:
+            logger.error(f"❌ MCP server HTTP error: {e.response.status_code} - {e}")
+            raise Exception(f"MCP server returned error: {e.response.status_code}")
+        except Exception as e:
+            logger.error(f"❌ Failed to connect to MCP server: {e}")
+            raise
 
         # Create task management agent with MCP server
         agent = Agent(
@@ -400,10 +481,30 @@ user_id is always: "{user_id}"
             user_id = context.get("user_id", "anonymous")
             logger.info(f"Creating agent for user_id: {user_id}")
 
-            # Create agent with MCP server, passing user_id
+            # Try to create agent with MCP server, with fallback to degraded mode
             logger.info(f"Creating agent with MCP for user: {user_id}")
-            agent, mcp_server = await self._create_agent_with_mcp(user_id)
-            logger.info(f"Agent created successfully: {agent.name}")
+
+            # First, check if MCP server is healthy (quick health check)
+            mcp_healthy = await self._check_mcp_health()
+
+            if not mcp_healthy:
+                logger.warning("⚠️ MCP server health check failed, using degraded mode")
+                agent = await self._create_agent_without_mcp(user_id)
+                mcp_server = None
+                logger.info(f"⚠️ Agent created in degraded mode (no health): {agent.name}")
+            else:
+                # Health check passed, try to connect
+                try:
+                    agent, mcp_server = await self._create_agent_with_mcp(user_id)
+                    logger.info(f"✅ Agent created successfully with MCP tools: {agent.name}")
+                except Exception as mcp_error:
+                    logger.error(f"❌ Failed to create agent with MCP: {mcp_error}")
+                    logger.info("🔄 Falling back to degraded mode (connection failed)")
+
+                    # Fallback: create agent without MCP tools
+                    agent = await self._create_agent_without_mcp(user_id)
+                    mcp_server = None  # No MCP server in degraded mode
+                    logger.info(f"⚠️ Agent created in degraded mode (fallback): {agent.name}")
 
             # Load full conversation history from the store for context
             try:
@@ -552,8 +653,13 @@ user_id is always: "{user_id}"
         finally:
             # Ensure MCP server is properly disconnected in the same task context
             if mcp_server is not None:
+                import asyncio
                 try:
-                    await mcp_server.cleanup()
+                    # Use asyncio.shield to ensure cleanup completes even if task is cancelled
+                    await asyncio.shield(mcp_server.cleanup())
                     logger.info("✅ MCP server cleaned up successfully")
+                except asyncio.CancelledError:
+                    # If cleanup is cancelled, log but don't raise
+                    logger.warning("⚠️ MCP server cleanup was cancelled")
                 except Exception as cleanup_err:
                     logger.warning(f"⚠️ Error cleaning up MCP server: {cleanup_err}")
