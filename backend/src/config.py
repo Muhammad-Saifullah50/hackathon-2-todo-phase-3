@@ -16,16 +16,16 @@ def _get_mcp_server_url() -> str:
     mcp_url = os.getenv("MCP_VERCEL_URL")
     if mcp_url:
         # Handle if user provides full URL or just domain
-        # Standalone MCP server is now mounted at / root
+        # Standalone MCP server is now mounted at /mcp path
         if mcp_url.startswith("http"):
-            return mcp_url.rstrip("/")
-        return f"https://{mcp_url.rstrip('/')}"
+            return f"{mcp_url.rstrip('/')}/mcp"
+        return f"https://{mcp_url.rstrip('/')}/mcp"
 
     # For local development
     host = os.getenv("MCP_HOST", "localhost")
     port = os.getenv("MCP_PORT", "8000")
     if os.getenv("ENVIRONMENT") != "production":
-        return f"http://localhost:{port}"
+        return f"http://localhost:{port}/mcp"
 
     # Fall back to current vercel URL only if not explicitly standalone
     vercel_url = os.getenv("VERCEL_URL")

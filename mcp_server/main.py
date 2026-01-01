@@ -449,16 +449,27 @@ async def update_task(
             return {"error": str(e), "success": False}
 
 
-# Health check endpoint (defined before MCP mount)
+# Health check endpoint
 @app.get("/health")
 async def health():
     """Health check endpoint."""
     return {"status": "healthy", "service": "mcp-task-server"}
 
 
-# Mount MCP at root with trailing slash handling disabled
-# The redirect_slashes=False in FastAPI prevents 307/308 redirects that cause 421 on Vercel
-app.mount("/", mcp.streamable_http_app())
+# Root endpoint to provide info
+@app.get("/")
+async def root():
+    """Root endpoint."""
+    return {
+        "service": "MCP Task Management Server",
+        "status": "running",
+        "mcp_endpoint": "/mcp"
+    }
+
+
+# Mount MCP at /mcp instead of root to avoid Vercel's 421 errors
+# Vercel has issues with SSE streaming at the root path
+app.mount("/mcp", mcp.streamable_http_app())
 
 
 # Export app for Vercel, wrapped with host header middleware
