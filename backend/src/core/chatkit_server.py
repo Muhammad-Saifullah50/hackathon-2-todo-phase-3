@@ -287,8 +287,6 @@ class TodoMoreChatKitServer(ChatKitServer):
                     "url": settings.MCP_SERVER_URL,
                     "headers": {
                         "Authorization": f"Bearer {settings.MCP_SERVER_TOKEN}",
-                        "Connection": "close",  # Use new connection each time to avoid 421 errors
-                        "Host": settings.MCP_SERVER_URL.replace("https://", "").replace("http://", "").split("/")[0],  # Explicit host header
                     },
                     "timeout": 30,
                 },

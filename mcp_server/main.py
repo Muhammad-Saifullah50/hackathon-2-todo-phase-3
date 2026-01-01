@@ -49,23 +49,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     print("MCP Server shutting down...")
 
 
-# Custom ASGI middleware to bypass Vercel's host validation
-class HostHeaderMiddleware:
-    """Middleware to accept any host header on Vercel."""
-
-    def __init__(self, app):
-        self.app = app
-
-    async def __call__(self, scope, receive, send):
-        if scope["type"] == "http":
-            # Remove or normalize the host header to avoid Vercel's validation
-            headers = dict(scope.get("headers", []))
-            # Accept any host by not validating it
-            scope["server"] = ("0.0.0.0", 443)  # Dummy server to bypass validation
-
-        await self.app(scope, receive, send)
-
-
 # Create FastAPI app for Vercel with disabled docs to reduce overhead
 app = FastAPI(
     title="MCP Task Server",
@@ -84,14 +67,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["Mcp-Session-Id", "Content-Type"],
-)
-
-# Create MCP server instance with stateless configuration for serverless/production
-mcp = FastMCP(
-    "Task Management Server",
-    stateless_http=True,
-    json_response=True,
-    streamable_http_path="/",  # Map internal routes to mount point root
 )
 
 
@@ -470,7 +445,3 @@ async def root():
 # Mount MCP at /mcp instead of root to avoid Vercel's 421 errors
 # Vercel has issues with SSE streaming at the root path
 app.mount("/mcp", mcp.streamable_http_app())
-
-
-# Export app for Vercel, wrapped with host header middleware
-vercel_app = HostHeaderMiddleware(app)
