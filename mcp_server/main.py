@@ -86,9 +86,6 @@ app.add_middleware(
     expose_headers=["Mcp-Session-Id", "Content-Type"],
 )
 
-# Wrap the entire app with host header bypass middleware
-app = HostHeaderMiddleware(app)
-
 # Create MCP server instance with stateless configuration for serverless/production
 mcp = FastMCP(
     "Task Management Server",
@@ -464,5 +461,5 @@ async def health():
 app.mount("/", mcp.streamable_http_app())
 
 
-# Export app for Vercel
-vercel_app = app
+# Export app for Vercel, wrapped with host header middleware
+vercel_app = HostHeaderMiddleware(app)
