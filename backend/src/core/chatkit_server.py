@@ -308,6 +308,7 @@ class TodoMoreChatKitServer(ChatKitServer):
             logger.error(f"❌ Failed to connect to MCP server: {e}")
             raise
 
+
         # Create task management agent with MCP server
         agent = Agent(
             name="TodoBot",

@@ -49,41 +49,45 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     print("MCP Server shutting down...")
 
 
-# Create FastAPI app for Vercel
+# Custom ASGI middleware to bypass Vercel's host validation
+class HostHeaderMiddleware:
+    """Middleware to accept any host header on Vercel."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            # Remove or normalize the host header to avoid Vercel's validation
+            headers = dict(scope.get("headers", []))
+            # Accept any host by not validating it
+            scope["server"] = ("0.0.0.0", 443)  # Dummy server to bypass validation
+
+        await self.app(scope, receive, send)
+
+
+# Create FastAPI app for Vercel with disabled docs to reduce overhead
 app = FastAPI(
     title="MCP Task Server",
     lifespan=lifespan,
     redirect_slashes=False,
+    docs_url=None,  # Disable swagger UI
+    redoc_url=None,  # Disable redoc
 )
 
 # CORS for MCP clients (must be added BEFORE mounting MCP)
 frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*", frontend_url, "http://localhost:3000"],
+    allow_origins=["*"],  # Allow all origins to avoid host header issues
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["Mcp-Session-Id"],
+    expose_headers=["Mcp-Session-Id", "Content-Type"],
 )
 
-# Add middleware to handle Vercel's proxy headers
-# This prevents 421 Misdirected Request errors
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import Response
-
-
-class VercelHostMiddleware(BaseHTTPMiddleware):
-    """Fix host header issues on Vercel that cause 421 errors."""
-
-    async def dispatch(self, request: Request, call_next):
-        # Vercel uses x-forwarded-host, ensure we accept any host
-        # This prevents 421 Misdirected Request errors
-        return await call_next(request)
-
-
-app.add_middleware(VercelHostMiddleware)
+# Wrap the entire app with host header bypass middleware
+app = HostHeaderMiddleware(app)
 
 # Create MCP server instance with stateless configuration for serverless/production
 mcp = FastMCP(
