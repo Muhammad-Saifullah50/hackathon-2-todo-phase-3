@@ -1,16 +1,11 @@
 {
   "version": 2,
   "buildCommand": "pip install -r requirements.txt",
-  "builds": [
+  "framework": "fastapi",
+  "rewrites": [
     {
-      "src": "main.py",
-      "use": "@vercel/python"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "main.py"
+      "source": "/(.*)",
+      "destination": "main.py"
     }
   ]
 }
