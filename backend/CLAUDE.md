@@ -1,21 +1,26 @@
-# Claude Code Guidelines - CLI Todo Application
+# TodoMore Backend - FastAPI Development Guidelines
 
-This file contains project-specific guidelines for Claude Code when working on this CLI Todo application.
+This file contains project-specific guidelines for Claude Code when working on the TodoMore backend application.
 
 ## Project Overview
 
-**CLI Todo Application** - A beautiful, interactive command-line task management application built with Python 3.13+, featuring full-width menus, colorful UI, and persistent JSON storage.
+**TodoMore Backend** - A modern FastAPI backend for the TodoMore task management application, featuring PostgreSQL database, SQLAlchemy ORM, and RESTful API design.
 
 **Tech Stack:**
 - Python 3.13+
-- questionary (interactive prompts)
-- rich (terminal formatting)
-- pytest (testing)
+- FastAPI 0.100+ for API framework
+- SQLModel (SQLAlchemy + Pydantic) for ORM and validation
+- Alembic for database migrations
+- Neon PostgreSQL 16+ for database (serverless)
+- Pytest for testing
+- Pydantic v2 for data validation
 
 **Architecture:**
-- Clean layered architecture (CLI → Services → Storage)
-- Interface-based design for testability
-- Separation of concerns across modules
+- Layered architecture (API → Services → Models/Database)
+- RESTful API design
+- Async/await support
+- Dependency injection pattern
+- Soft delete pattern
 
 ## Core Principles
 
@@ -23,78 +28,93 @@ This file contains project-specific guidelines for Claude Code when working on t
 
 - **Type Hints:** All function signatures must include type hints
 - **Docstrings:** All public functions and classes require docstrings
-- **Line Length:** Maximum 100 characters (configured in pyproject.toml)
-- **Naming:** Use descriptive names (no single-letter variables except in comprehensions)
+- **Line Length:** Maximum 100 characters (configured in ruff.toml)
+- **Naming:** Use descriptive names following PEP 8
 - **Imports:** Organize imports (standard library → third-party → local)
 
 ### 2. Testing Requirements
 
-- **Coverage:** Maintain existing test coverage (76+ passing tests)
+- **Coverage:** Maintain high test coverage
 - **Test Structure:** Follow AAA pattern (Arrange, Act, Assert)
-- **Test Location:**
-  - Unit tests: `tests/unit/`
-  - Integration tests: `tests/integration/`
-  - Contract tests: `tests/contract/`
-- **Run Before Commit:** Always run `pytest` before committing changes
+- **Test Location:** All tests in `tests/` directory
+- **Run Before Commit:** Always run `uv run pytest` before committing changes
 
-### 3. UI Consistency
+### 3. API Design
 
-All interactive prompts MUST use the full-width wrappers from `src/cli/utils/styles.py`:
-
-```python
-from src.cli.utils.styles import (
-    select_fullwidth,      # For select menus
-    checkbox_fullwidth,    # For checkboxes
-    text_fullwidth,        # For text inputs
-    confirm_fullwidth,     # For confirmations
-)
-```
-
-**Do NOT use questionary directly** - always use the wrapper functions to maintain UI consistency.
+- Follow RESTful conventions
+- Use appropriate HTTP methods (GET, POST, PUT, PATCH, DELETE)
+- Use semantic status codes (200, 201, 400, 404, 500)
+- Provide clear error messages
+- Use Pydantic for request/response validation
 
 ### 4. Error Handling
 
-- Use custom exceptions from `src/exceptions.py`
-- Always provide user-friendly error messages
-- Use `show_error()` for displaying errors to users
-- Handle KeyboardInterrupt gracefully (let main app handle it)
+- Use FastAPI's HTTPException for errors
+- Provide user-friendly error messages
+- Log errors appropriately
+- Handle database errors gracefully
 
 Example:
 ```python
+from fastapi import HTTPException, status
+
 try:
-    # operation
-except TaskNotFoundError as e:
-    show_error(f"❌ Task not found: {str(e)}")
-except KeyboardInterrupt:
-    raise  # Let main app handle
+    result = service.get_task(task_id)
+except TaskNotFoundError:
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="Task not found"
+    )
 except Exception as e:
-    show_error(f"Unexpected error: {str(e)}", exception=e)
+    logger.error(f"Unexpected error: {e}")
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail="Internal server error"
+    )
 ```
 
 ## File Organization
 
+### Directory Structure
+
+```
+backend/
+├── alembic/              # Database migrations
+├── src/
+│   ├── api/              # API route handlers
+│   ├── core/             # Core utilities (security, config)
+│   ├── db/               # Database utilities
+│   ├── models/           # Database models
+│   ├── schemas/          # Pydantic schemas (request/response)
+│   ├── services/         # Business logic layer
+│   └── validators/      # Custom validators
+├── tests/                # Test files
+├── alembic.ini
+└── pyproject.toml
+```
+
 ### When Adding New Features
 
-1. **Commands** (`src/cli/commands/`):
-   - One file per command (e.g., `export.py` for export feature)
-   - Follow existing command structure
-   - Use full-width menu wrappers
-   - Handle errors consistently
+1. **Models** (`src/models/`):
+   - Add SQLModel classes for database tables
+   - Include proper field types and constraints
+   - Add soft delete support (deleted_at field)
 
-2. **Models** (`src/models/`):
-   - Keep Task model focused and simple
-   - Add new models only if needed
-   - Include validation in model methods
+2. **Schemas** (`src/schemas/`):
+   - Create request schemas for input validation
+   - Create response schemas for output formatting
+   - Use appropriate field types (e.g., EmailStr, HttpUrl)
 
 3. **Services** (`src/services/`):
-   - Business logic goes here, not in CLI layer
-   - Follow interface pattern (interface.py + implementation)
+   - Implement business logic in service classes
    - Keep methods focused and testable
+   - Raise appropriate exceptions
 
-4. **Storage** (`src/storage/`):
-   - Abstract storage operations
-   - Support atomic writes
-   - Maintain backup functionality
+4. **API Routes** (`src/api/`):
+   - Create route handlers (routers)
+   - Use dependency injection
+   - Validate inputs with Pydantic
+   - Return proper status codes
 
 ### When Modifying Existing Code
 
@@ -109,37 +129,42 @@ except Exception as e:
    - Update tests if behavior changes intentionally
 
 3. **Respect Architecture:**
-   - Don't add business logic to CLI layer
-   - Don't access storage directly from commands
-   - Use service layer as intermediary
+   - Keep business logic in services
+   - Don't access database directly from routes
+   - Use validators for input validation
 
 ## Specific Module Guidelines
 
-### CLI Layer (`src/cli/`)
+### API Layer (`src/api/`)
 
-**Purpose:** User interaction and display only
+**Purpose:** HTTP request/response handling only
 
 **Rules:**
-- No business logic calculations
-- No direct storage access
-- Use services for all operations
-- Use formatters for all output
-- Use full-width wrappers for all prompts
+- Route handlers should be thin
+- Delegate business logic to services
+- Use dependency injection for database, auth, etc.
+- Validate inputs with Pydantic
+- Return appropriate HTTP status codes
 
 **Example:**
 ```python
 # ✅ Good - delegates to service
-def add_task_interactive(service: TaskService) -> None:
-    title = text_fullwidth("Enter task title:")
-    task = service.add_task(title=title)
-    show_success("Task added!", task=task)
+@router.post("/tasks", response_model=TaskResponse, status_code=status.HTTP_201_CREATED)
+async def create_task(
+    task: TaskCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Create a new task for the current user."""
+    created_task = task_service.create_task(db, task, current_user.id)
+    return created_task
 
 # ❌ Bad - contains business logic
-def add_task_interactive(storage: Storage) -> None:
-    title = input("Title: ")
-    task_id = str(uuid.uuid4())[:8]  # Logic in CLI!
-    task = Task(id=task_id, title=title, ...)
-    storage.save(...)
+@router.post("/tasks")
+async def create_task(task: TaskCreate):
+    task_id = uuid.uuid4()  # Logic in route!
+    db.execute(...)
+    return task
 ```
 
 ### Service Layer (`src/services/`)
@@ -147,20 +172,26 @@ def add_task_interactive(storage: Storage) -> None:
 **Purpose:** Business logic and orchestration
 
 **Rules:**
-- Validate all inputs using `validators.py`
-- Don't print or display messages
-- Raise custom exceptions for errors
+- Implement all business logic
+- Don't use FastAPI-specific types (Request, Response)
+- Raise domain-specific exceptions
 - Keep methods focused (single responsibility)
 - Document complex logic
 
 **Example:**
 ```python
-def add_task(self, title: str, description: str = "") -> Task:
-    """Add a new task with validation.
+def create_task(
+    self,
+    db: Session,
+    task_data: TaskCreate,
+    user_id: str
+) -> Task:
+    """Create a new task for a user.
 
     Args:
-        title: Task title (required)
-        description: Optional task description
+        db: Database session
+        task_data: Task creation data
+        user_id: ID of the user creating the task
 
     Returns:
         Created Task object
@@ -168,196 +199,261 @@ def add_task(self, title: str, description: str = "") -> Task:
     Raises:
         TaskValidationError: If validation fails
     """
-    validate_title(title)
-    validate_description(description)
-    # ... implementation
+    # Validate input
+    validate_task_title(task_data.title)
+
+    # Create task
+    task = Task(
+        title=task_data.title,
+        description=task_data.description,
+        user_id=user_id,
+        status=TaskStatus.PENDING
+    )
+
+    # Save to database
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+
+    return task
 ```
-
-### Storage Layer (`src/storage/`)
-
-**Purpose:** Data persistence only
-
-**Rules:**
-- No business logic
-- Use atomic writes
-- Create backups before modifications
-- Handle file I/O errors gracefully
-- Keep storage format simple (JSON)
 
 ### Models (`src/models/`)
 
-**Purpose:** Data structures and validation
+**Purpose:** Database schema definition
 
 **Rules:**
-- Immutable where possible (use methods to create new instances)
-- Include validation in constructors
-- Provide `to_dict()` and `from_dict()` methods
-- Keep models focused (single responsibility)
+- Use SQLModel for table definition
+- Include proper field types and constraints
+- Add indexes for commonly queried fields
+- Implement soft delete pattern
+- Define relationships between models
 
-## UI/UX Guidelines
+**Example:**
+```python
+class Task(SQLModel, table=True):
+    """Task model representing a task in the database."""
+    __tablename__ = "tasks"
 
-### Menu Design
+    id: str = Field(default_factory=generate_uuid, primary_key=True)
+    title: str = Field(max_length=200, index=True)
+    description: Optional[str] = Field(default=None, max_length=2000)
+    status: TaskStatus = Field(default=TaskStatus.PENDING)
+    user_id: str = Field(foreign_key="users.id", index=True)
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow, sa_column_kwargs={"onupdate": utcnow})
+    deleted_at: Optional[datetime] = Field(default=None, index=True)
 
-1. **Use Emojis Consistently:**
-   - 📝 for creation/input
-   - 👀 for viewing
-   - ✏️ for editing
-   - ✅ for completion/confirmation
-   - 🗑️ for deletion
-   - 🚪 for exit
-   - ← for back navigation
+    # Relationships
+    user: "User" = Relationship(back_populates="tasks")
+    subtasks: List["Subtask"] = Relationship(back_populates="task")
+```
 
-2. **Provide Back Options:**
-   - Always include "← Back to main menu" or "← Cancel"
-   - Place back option last in the list
+### Schemas (`src/schemas/`)
 
-3. **Confirm Destructive Actions:**
-   - Always confirm deletions
-   - Use ⚠️ emoji for warnings
-   - Mention if action is irreversible
+**Purpose:** Request/response validation and serialization
 
-### Formatting
+**Rules:**
+- Use Pydantic models for validation
+- Separate request and response schemas
+- Use appropriate field types (EmailStr, HttpUrl, etc.)
+- Make optional fields nullable, not optional
+- Use enums for fixed sets of values
 
-1. **Use Rich Formatters:**
-   ```python
-   from src.cli.display.formatters import (
-       show_success,  # Green success messages
-       show_error,    # Red error messages
-       show_info,     # Blue info messages
-       show_warning,  # Yellow warnings
-   )
-   ```
+**Example:**
+```python
+class TaskCreate(BaseModel):
+    """Schema for creating a new task."""
+    title: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = Field(None, max_length=2000)
+    due_date: Optional[datetime] = None
+    priority: TaskPriority = TaskPriority.MEDIUM
 
-2. **Table Display:**
-   - Use `create_task_table()` for task lists
-   - Truncate long descriptions
-   - Show status with icons (⏳ pending, ✅ completed)
+class TaskResponse(BaseModel):
+    """Schema for task response."""
+    id: str
+    title: str
+    description: Optional[str] = None
+    status: TaskStatus
+    created_at: datetime
+    updated_at: datetime
 
-3. **Spacing:**
-   - Add blank lines before/after menus: `console.print()`
-   - Let full-width wrappers handle borders
+    class Config:
+        from_attributes = True
+```
+
+### Validators (`src/validators/`)
+
+**Purpose:** Business validation logic
+
+**Rules:**
+- Implement custom validation rules
+- Raise ValidationError or domain-specific exceptions
+- Keep validators focused and reusable
+- Use descriptive error messages
+
+**Example:**
+```python
+def validate_task_title(title: str) -> None:
+    """Validate task title.
+
+    Args:
+        title: Task title to validate
+
+    Raises:
+        ValidationError: If title is invalid
+    """
+    if not title or not title.strip():
+        raise ValidationError("Task title cannot be empty")
+    if len(title) > 200:
+        raise ValidationError("Task title cannot exceed 200 characters")
+```
+
+## Database Operations
+
+### Soft Delete Pattern
+
+Always use soft deletes instead of hard deletes:
+
+```python
+# Filter out deleted records
+query = select(Task).where(Task.deleted_at.is_(None))
+
+# Soft delete
+task.deleted_at = datetime.now(timezone.utc)
+db.commit()
+
+# Restore
+task.deleted_at = None
+db.commit()
+```
+
+### Pagination
+
+Implement pagination for list endpoints:
+
+```python
+def get_tasks(
+    db: Session,
+    user_id: str,
+    page: int = 1,
+    limit: int = 10
+) -> PaginatedTasksResponse:
+    """Get paginated tasks for a user."""
+    offset = (page - 1) * limit
+
+    # Get total count
+    total = db.exec(
+        select(func.count(Task.id)).where(
+            Task.user_id == user_id,
+            Task.deleted_at.is_(None)
+        )
+    ).one()
+
+    # Get paginated results
+    tasks = db.exec(
+        select(Task)
+        .where(Task.user_id == user_id, Task.deleted_at.is_(None))
+        .order_by(Task.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+    ).all()
+
+    total_pages = (total + limit - 1) // limit
+
+    return PaginatedTasksResponse(
+        tasks=tasks,
+        total=total,
+        page=page,
+        limit=limit,
+        total_pages=total_pages
+    )
+```
 
 ## Common Patterns
 
-### Adding a New Command
+### Creating a New API Endpoint
 
-1. Create file in `src/cli/commands/new_command.py`
-2. Follow this template:
-
+1. **Create schema** in `src/schemas/`:
 ```python
-"""New command description."""
-
-from src.cli.display.formatters import show_error, show_success
-from src.cli.utils.styles import select_fullwidth
-from src.exceptions import TaskNotFoundError
-from src.services.task_service import TaskService
-
-
-def new_command_interactive(service: TaskService) -> None:
-    """Interactive command description.
-
-    Args:
-        service: TaskService instance
-    """
-    try:
-        # Show menu
-        choice = select_fullwidth(
-            "What would you like to do?",
-            choices=["Option 1", "Option 2", "← Back to main menu"],
-        )
-
-        if choice is None or choice == "← Back to main menu":
-            return
-
-        # Perform operation
-        result = service.some_operation()
-
-        # Show result
-        show_success("Operation successful!", task=result)
-
-    except TaskNotFoundError as e:
-        show_error(f"❌ Error: {str(e)}")
-    except KeyboardInterrupt:
-        raise
-    except Exception as e:
-        show_error(f"Unexpected error: {str(e)}", exception=e)
+class TaskCreate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = Field(None, max_length=2000)
 ```
 
-3. Add to main menu in `src/cli/app.py`
-4. Write tests in `tests/unit/test_new_command.py`
-
-### Adding a New Service Method
-
-1. Add method to interface in `src/services/interface.py`
-2. Implement in `src/services/task_service.py`
-3. Follow this pattern:
-
+2. **Create service method** in `src/services/`:
 ```python
-def new_method(self, param: str) -> Task:
-    """Method description.
-
-    Args:
-        param: Parameter description
-
-    Returns:
-        Result description
-
-    Raises:
-        CustomException: When this happens
-    """
-    # Validate inputs
-    validate_param(param)
-
-    # Load data
-    data = self.storage.load()
-
-    # Business logic here
-    result = self._process(data, param)
-
-    # Save if needed
-    self.storage.save(data)
-
-    return result
+def create_task(self, db: Session, task_data: TaskCreate, user_id: str) -> Task:
+    validate_task_title(task_data.title)
+    task = Task(**task_data.model_dump(), user_id=user_id)
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+    return task
 ```
 
-4. Write tests covering happy path and error cases
+3. **Create route handler** in `src/api/`:
+```python
+@router.post("/tasks", response_model=TaskResponse, status_code=status.HTTP_201_CREATED)
+async def create_task(
+    task: TaskCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return task_service.create_task(db, task, current_user.id)
+```
+
+### Creating a Database Migration
+
+```bash
+# Generate migration
+cd backend && uv run alembic revision --autogenerate -m "Add task priority field"
+
+# Review the generated migration file
+# Edit if necessary
+
+# Apply migration
+cd backend && uv run alembic upgrade head
+```
 
 ## Testing Guidelines
 
 ### Unit Tests
 
-- Test one unit of code in isolation
-- Mock external dependencies
-- Cover happy path and error cases
-- Use descriptive test names: `test_add_task_generates_unique_id`
+```python
+def test_create_task(db_session):
+    """Test creating a task."""
+    # Arrange
+    user = User(id="user1", email="test@example.com")
+    db_session.add(user)
+    db_session.commit()
+
+    task_data = TaskCreate(title="Test Task", description="Test description")
+
+    # Act
+    result = task_service.create_task(db_session, task_data, user.id)
+
+    # Assert
+    assert result.title == "Test Task"
+    assert result.user_id == user.id
+    assert result.status == TaskStatus.PENDING
+```
 
 ### Integration Tests
 
-- Test multiple components together
-- Use real storage (temp files)
-- Verify end-to-end workflows
-- Keep tests independent
-
-### Contract Tests
-
-- Verify interface implementations
-- Test storage contract compliance
-- Ensure backward compatibility
-
-### Test Structure
-
 ```python
-def test_descriptive_name(self):
-    """Test description in plain English."""
-    # Arrange
-    service = TaskService(mock_storage)
+def test_create_task_endpoint(client, auth_headers):
+    """Test creating a task via API."""
+    response = client.post(
+        "/api/tasks",
+        json={"title": "Test Task", "description": "Test description"},
+        headers=auth_headers
+    )
 
-    # Act
-    result = service.add_task("Test task")
-
-    # Assert
-    assert result.title == "Test task"
-    assert result.status == "pending"
+    assert response.status_code == status.HTTP_201_CREATED
+    data = response.json()
+    assert data["title"] == "Test Task"
+    assert "id" in data
 ```
 
 ## Common Mistakes to Avoid
@@ -365,106 +461,96 @@ def test_descriptive_name(self):
 ### ❌ Don't Do This
 
 ```python
-# 1. Using questionary directly
-import questionary
-choice = questionary.select("Menu", choices=[...]).ask()
+# 1. Business logic in routes
+@router.post("/tasks")
+async def create_task(task: TaskCreate):
+    if len(task.title) < 3:  # Validation in route!
+        raise HTTPException(400, "Title too short")
+    # ... logic ...
 
-# 2. Business logic in CLI
-def add_task_interactive(service):
-    if len(title) < 3:  # Validation in CLI!
-        print("Error")
+# 2. Hard deletes
+db.delete(task)  # ❌ Hard delete
 
-# 3. Printing in service layer
-def add_task(self, title):
-    print("Adding task...")  # No printing in services!
+# 3. SQL injection vulnerabilities
+db.execute(f"SELECT * FROM tasks WHERE id = '{task_id}'")  # ❌ SQL injection
 
-# 4. Direct storage access in commands
-def view_tasks(storage):
-    tasks = storage.load()["tasks"]  # Skip service layer!
+# 4. Not using dependency injection
+db = Session(engine)  # ❌ Manual session management
 ```
 
 ### ✅ Do This Instead
 
 ```python
-# 1. Use full-width wrappers
-from src.cli.utils.styles import select_fullwidth
-choice = select_fullwidth("Menu", choices=[...])
+# 1. Use service layer
+@router.post("/tasks")
+async def create_task(task: TaskCreate, db: Session = Depends(get_db)):
+    return task_service.create_task(db, task, user_id)  # Delegate to service
 
-# 2. Delegate validation to service
-def add_task_interactive(service):
-    title = text_fullwidth("Title:")
-    service.add_task(title)  # Let service validate
+# 2. Use soft deletes
+task.deleted_at = datetime.now(timezone.utc)  # ✓ Soft delete
 
-# 3. Return data, let CLI handle display
-def add_task(self, title):
-    validate_title(title)
-    # ... logic ...
-    return task
+# 3. Use parameterized queries
+db.execute(select(Task).where(Task.id == task_id))  # ✓ Safe query
 
-# 4. Always use service layer
-def view_tasks_interactive(service):
-    tasks = service.get_all_tasks()
+# 4. Use dependency injection
+db: Session = Depends(get_db)  # ✓ Dependency injection
 ```
 
 ## Performance Considerations
 
-- **Pagination:** Always paginate large lists (default: 10 items)
-- **File I/O:** Use atomic writes, create backups before modifications
-- **Validation:** Validate early, fail fast
-- **Caching:** Store loaded data in service instance when appropriate
+- **Indexes:** Add indexes to frequently queried fields
+- **Pagination:** Always paginate large lists
+- **N+1 Queries:** Use eager loading for relationships
+- **Connection Pooling:** Configure appropriate pool size
+- **Lazy Loading:** Be aware of lazy loading behavior
 
 ## Security Considerations
 
-- **Input Validation:** Validate all user inputs
-- **File Paths:** Use pathlib, avoid shell injection
-- **Errors:** Don't expose internal paths in error messages
-- **Backups:** Create backups before destructive operations
-
-## When to Ask for Clarification
-
-Always ask the user before:
-- Making breaking changes to the API
-- Changing data storage format
-- Modifying existing behavior significantly
-- Adding new dependencies
-- Removing features
-
-## Resources
-
-- **Project Specs:** `specs/001-cli-todo/`
-- **Test Examples:** `tests/unit/` and `tests/integration/`
-- **Code Contracts:** `specs/001-cli-todo/contracts/`
-- **Data Model:** `specs/001-cli-todo/data-model.md`
+- **Input Validation:** Always validate user inputs
+- **SQL Injection:** Use SQLAlchemy ORM, not raw SQL
+- **XSS:** Sanitize user-generated content
+- **Rate Limiting:** Implement rate limiting for public endpoints
+- **CORS:** Configure CORS properly
+- **Environment Variables:** Never commit secrets
 
 ## Quick Reference
 
 ### Run Tests
 ```bash
-pytest                    # Run all tests
-pytest -v                # Verbose output
-pytest --cov=src         # With coverage
+uv run pytest                    # Run all tests
+uv run pytest -v                # Verbose output
+uv run pytest --cov=src         # With coverage
 ```
 
 ### Code Quality
 ```bash
-black src tests          # Format code
-ruff check src tests     # Lint code
-mypy src                 # Type check
+uv run ruff check src tests     # Lint code
+uv run black src tests          # Format code
+uv run mypy src tests           # Type check
 ```
 
-### Run Application
+### Database Operations
 ```bash
-todo                     # Normal mode
-todo --simple           # Simple mode
-python -m src.main      # Direct execution
+uv run alembic upgrade head     # Apply migrations
+uv run alembic revision --autogenerate -m "message"  # Create migration
+uv run alembic current          # Check current version
+uv run alembic history          # View migration history
+```
+
+### Run Server
+```bash
+uvicorn src.main:app --reload   # Development server
+uvicorn src.main:app            # Production server
 ```
 
 ---
 
-**Remember:** The goal is to maintain a clean, testable, and user-friendly codebase. When in doubt, follow existing patterns and ask for clarification.
+**Remember:** The goal is to maintain a clean, testable, and maintainable codebase. When in doubt, follow existing patterns and ask for clarification.
 
 ## Active Technologies
-- Neon PostgreSQL 16+ (serverless cloud database with automatic scaling) (002-project-setup)
+- Neon PostgreSQL 16+ (serverless cloud database with automatic scaling)
+- MCP (Model Context Protocol) for AI integration
 
 ## Recent Changes
-- 002-project-setup: Added Neon PostgreSQL 16+ (serverless cloud database with automatic scaling)
+- Phase 3: Added MCP (Model Context Protocol) server for AI integration
+- 007-ai-chatbot: Added AI chatbot functionality with conversations and messages

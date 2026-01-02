@@ -99,4 +99,8 @@ fail_under = 80
 [dependency-groups]
 dev = [
     "aiosqlite>=0.22.0",
+    "httpx>=0.28.1",
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
+    "pytest-cov>=7.0.0",
 ]

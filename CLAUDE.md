@@ -1,20 +1,32 @@
-# hackathon-2-todo-phase-2 Development Guidelines
+# hackathon-2-todo-phase-3 Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2025-12-20
+Auto-generated from all feature plans. Last updated: 2026-01-02
 
 ## Active Technologies
 - Python 3.13+ (backend), TypeScript 5.7+ (frontend) + FastAPI 0.100+, SQLModel, PostgreSQL 16+ (Neon), Next.js 15, React 19, TanStack Query v5, Shadcn/ui (005-task-management)
 - PostgreSQL with SQLModel ORM, Alembic migrations for schema versioning (005-task-management)
 - Framer Motion for animations, Recharts for charts, dnd-kit for drag-and-drop, cmdk for command palette, @use-gesture/react for mobile gestures, date-fns for dates, Zustand for client state (006-landing-page-ui)
-- (004-task-creation)
 - PostgreSQL 16+ (Neon) for tasks, users, conversations, messages, templates, tags (007-ai-chatbot)
+- MCP (Model Context Protocol) server for AI integration
 
 ## Project Structure
 
 ```text
-backend/
-frontend/
-tests/
+backend/          # FastAPI backend
+  src/
+    api/          # API endpoints
+    core/         # Core utilities
+    models/       # Database models
+    schemas/      # Pydantic schemas
+    services/     # Business logic
+    db/           # Database utilities
+frontend/         # Next.js frontend
+  app/            # App Router pages
+  components/     # React components
+  hooks/          # Custom hooks
+  lib/            # Utilities
+mcp_server/       # MCP server for AI integration
+tests/            # Test files
 ```
 
 ## Commands
@@ -31,7 +43,7 @@ cd backend && alembic upgrade head
 cd backend && alembic revision --autogenerate -m "description"
 
 # Run tests with coverage
-cd backend && pytest --cov=src tests/
+cd backend && uv run pytest --cov=src tests/
 
 # Access API documentation
 # Swagger UI: http://localhost:8000/docs
@@ -57,9 +69,15 @@ cd frontend && npm run lint
 
 # Run tests
 cd frontend && npm test
+```
 
-# Run E2E tests (requires Playwright)
-cd frontend && npm run test:e2e
+### MCP Server
+```bash
+# Start MCP server
+cd mcp_server && python main.py
+
+# Install dependencies
+cd mcp_server && pip install -r requirements.txt
 ```
 
 ## Code Style
@@ -344,8 +362,30 @@ npx shadcn@latest add alert-dialog
 # Or create manually in components/ui/
 ```
 
+### MCP Server Issues
+
+**Connection Errors**
+```bash
+# Check environment variables
+cd mcp_server
+cat .env
+
+# Verify the MCP server is running
+python main.py
+```
+
+**Import Errors**
+```bash
+# Reinstall dependencies
+pip install -r requirements.txt
+
+# Check Python version
+python --version  # Should be 3.13+
+```
+
 ## Recent Changes
-- 007-ai-chatbot: Added Python 3.13+ (backend), TypeScript 5.7+ (frontend)
+- Phase 3: Added MCP (Model Context Protocol) server for AI integration
+- 007-ai-chatbot: Added AI chatbot functionality with conversations and messages
 - 006-landing-page-ui: Added Framer Motion for animations, Recharts for charts, dnd-kit for drag-and-drop, cmdk for command palette, @use-gesture/react for mobile gestures, date-fns for dates, Zustand for client state
 - 006-landing-page-ui: Implemented landing page with scroll animations, due dates with timezone handling, tags system with color coding, subtasks with auto-completion, recurring tasks, task templates, keyboard shortcuts (Cmd/Ctrl+K), multiple views (List/Grid/Kanban/Calendar/Dashboard), theme picker, mobile swipe gestures, onboarding tour
 
