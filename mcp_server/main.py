@@ -28,11 +28,13 @@ elif os.path.exists(backend_env_path):
     print(f"✅ Loaded env from {backend_env_path}")
 
 # Create MCP server instance with stateless configuration for serverless/production
+# Note: streamable_http_path should be "/" because we mount the entire app at /mcp
+# The MCP protocol endpoints will be available at /mcp/sse, /mcp/message, etc.
 mcp = FastMCP(
     "Task Management Server",
     stateless_http=True,
     json_response=True,
-    streamable_http_path="/",  # Mount at root, then mount to /mcp path
+    streamable_http_path="/",  # Root of the mounted app (which is at /mcp)
 )
 
 
@@ -50,12 +52,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 
 # Create FastAPI app for Vercel with disabled docs to reduce overhead
+# Note: Don't use TrustedHostMiddleware as it causes issues with Vercel's proxy
 app = FastAPI(
     title="MCP Task Server",
     lifespan=lifespan,
     redirect_slashes=False,
     docs_url=None,  # Disable swagger UI
     redoc_url=None,  # Disable redoc
+    root_path="",  # Important: empty root path for Vercel
 )
 
 # CORS for MCP clients (must be added BEFORE mounting MCP)
@@ -444,4 +448,26 @@ async def root():
 
 # Mount MCP at /mcp
 mcp_app = mcp.streamable_http_app()
+
+# CRITICAL FIX: Disable DNS rebinding protection for Vercel deployment
+# The MCP SDK's TransportSecurityMiddleware blocks requests with "Invalid Host header"
+# when deployed on Vercel because the Host header doesn't match the expected domain
+from mcp.server.transport_security import TransportSecuritySettings
+
+# Patch the security middleware to disable host validation
+for middleware in mcp_app.user_middleware:
+    if hasattr(middleware, 'cls') and 'TransportSecurity' in str(middleware.cls):
+        # Recreate the middleware with disabled protection
+        from mcp.server.transport_security import TransportSecurityMiddleware
+        mcp_app.user_middleware.remove(middleware)
+        mcp_app.add_middleware(
+            TransportSecurityMiddleware,
+            settings=TransportSecuritySettings(
+                enable_dns_rebinding_protection=False,  # Disable for Vercel
+                allowed_hosts=[],
+                allowed_origins=[]
+            )
+        )
+        break
+
 app.mount("/mcp", mcp_app)
