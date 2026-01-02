@@ -144,10 +144,11 @@ class TestGetPublicKeyFunction:
     async def test_get_public_key_returns_cached_value_immediately(self, test_session: AsyncSession):
         """Test that cached key is returned without database query."""
         import src.auth
+        import time
 
-        # Pre-populate cache
+        # Pre-populate cache with timestamp (tuple format)
         cached_key = {"kty": "OKP", "crv": "Ed25519", "alg": "EdDSA", "x": "cached"}
-        src.auth._public_key_cache = cached_key
+        src.auth._public_key_cache = (cached_key, time.time())
 
         with patch.object(test_session, "execute", new_callable=AsyncMock) as mock_execute:
             # Execute

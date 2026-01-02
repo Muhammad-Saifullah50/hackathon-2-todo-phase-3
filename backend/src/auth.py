@@ -1,6 +1,7 @@
 from datetime import datetime
 import json
 import logging
+import time
 from typing import Annotated, Any
 
 from fastapi import Depends, HTTPException, status
@@ -24,8 +25,10 @@ AUDIENCE = "todo-api"
 
 security = HTTPBearer()
 
-# Cache for public key
-_public_key_cache: str | dict[str, Any] | None = None
+# Cache for public key with TTL (Time To Live)
+# Tuple of (key, timestamp) or None
+_public_key_cache: tuple[str | dict[str, Any], float] | None = None
+CACHE_TTL_SECONDS = 3600  # 1 hour
 
 
 class TokenData(BaseModel):
@@ -42,6 +45,9 @@ async def get_public_key(session: AsyncSession) -> str | dict[str, Any]:
     """
     Get the public key from the jwks table for JWT verification.
 
+    Uses a TTL-based cache (1 hour) to avoid repeated database queries while
+    ensuring key rotation works properly without server restart.
+
     Args:
         session: The database session.
 
@@ -53,9 +59,16 @@ async def get_public_key(session: AsyncSession) -> str | dict[str, Any]:
     """
     global _public_key_cache
 
-    # Return cached key if available
+    # Check if cache is valid (not None and not expired)
     if _public_key_cache is not None:
-        return _public_key_cache
+        cached_key, cached_timestamp = _public_key_cache
+        cache_age = time.time() - cached_timestamp
+
+        if cache_age < CACHE_TTL_SECONDS:
+            logger.debug(f"Using cached public key (age: {cache_age:.0f}s)")
+            return cached_key
+        else:
+            logger.debug(f"Public key cache expired (age: {cache_age:.0f}s), refetching")
 
     # Query the jwks table for the public key
     from sqlalchemy import text
@@ -72,7 +85,7 @@ async def get_public_key(session: AsyncSession) -> str | dict[str, Any]:
         )
 
     public_key_raw = row[0]
-    
+
     try:
         # Try to parse as JWK (JSON Web Key)
         public_key = json.loads(public_key_raw)
@@ -84,7 +97,9 @@ async def get_public_key(session: AsyncSession) -> str | dict[str, Any]:
         # Fallback to raw string (PEM)
         public_key = public_key_raw
 
-    _public_key_cache = public_key
+    # Cache the key with current timestamp
+    _public_key_cache = (public_key, time.time())
+    logger.debug("Public key cached successfully")
     return public_key
 
 
