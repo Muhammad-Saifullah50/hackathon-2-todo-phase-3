@@ -1,5 +1,6 @@
 from datetime import datetime
 import json
+import logging
 from typing import Annotated, Any
 
 from fastapi import Depends, HTTPException, status
@@ -13,6 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.config import settings
 from src.db.session import get_db
 from src.models.user import User
+
+logger = logging.getLogger(__name__)
 
 # Better Auth JWT plugin uses EdDSA (Ed25519) by default
 ALGORITHM = "EdDSA"
@@ -139,9 +142,7 @@ async def get_current_user(
             email_verified=payload.get("email_verified", False),
         )
     except jwt.PyJWTError as e:
-        print(f"JWT verification error: {e}")  # Debug logging
-        print(f"Public Key used: {public_key_data}")
-        print(f"Token (first 50 chars): {token.credentials[:50]}")
+        logger.debug(f"JWT verification failed: {type(e).__name__}")
         raise credentials_exception
 
     # Fetch user from database to ensure they still exist
