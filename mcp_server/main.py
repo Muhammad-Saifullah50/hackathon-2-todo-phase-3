@@ -40,14 +40,21 @@ mcp = FastMCP(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Lifespan for MCP server."""
+    """Lifespan for MCP server with proper resource management."""
     print("🚀 MCP Server starting up...")
     async with contextlib.AsyncExitStack() as stack:
         # CRITICAL: Start the session manager task group for streamable HTTP
         # This is required when mounting the app inside FastAPI
         await stack.enter_async_context(mcp.session_manager.run())
         print("✅ Session manager started successfully")
+
+        # Initialize database pool on startup
+        await get_pool()
+
         yield
+
+        # Cleanup on shutdown
+        await close_pool()
     print("🛑 MCP Server shutting down...")
 
 
@@ -82,6 +89,9 @@ from typing import Any, Optional
 from dateutil import parser
 import asyncpg
 
+# Authentication imports
+from auth import extract_user_id_from_authorization
+
 # Database URL from environment
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
@@ -94,43 +104,86 @@ def get_db_url() -> str:
     return url.replace("+psycopg://", "postgresql://")
 
 
+# Connection pool configuration (optimized for serverless)
 _pool: Optional[asyncpg.Pool] = None
+DB_POOL_MIN_SIZE = int(os.getenv("DB_POOL_MIN_SIZE", "1"))
+DB_POOL_MAX_SIZE = int(os.getenv("DB_POOL_MAX_SIZE", "5"))
+DB_POOL_TIMEOUT = int(os.getenv("DB_POOL_TIMEOUT", "60"))
+DB_POOL_MAX_INACTIVE_LIFETIME = int(os.getenv("DB_POOL_MAX_INACTIVE_LIFETIME", "300"))
 
 
 async def get_pool() -> asyncpg.Pool:
-    """Get or create connection pool."""
+    """Get or create connection pool with production-ready configuration.
+
+    Pool configuration is optimized for serverless environments:
+    - Small pool size (1-5 connections) to avoid overwhelming database
+    - Short timeouts to handle serverless cold starts
+    - Automatic connection cleanup for inactive connections
+
+    Environment variables for tuning:
+    - DB_POOL_MIN_SIZE: Minimum pool size (default: 1)
+    - DB_POOL_MAX_SIZE: Maximum pool size (default: 5)
+    - DB_POOL_TIMEOUT: Command timeout in seconds (default: 60)
+    - DB_POOL_MAX_INACTIVE_LIFETIME: Max lifetime for idle connections in seconds (default: 300)
+    """
     global _pool
     if _pool is None:
         _pool = await asyncpg.create_pool(
             get_db_url(),
-            min_size=1,
-            max_size=5,
-            command_timeout=60,
-            max_inactive_connection_lifetime=60,
+            min_size=DB_POOL_MIN_SIZE,
+            max_size=DB_POOL_MAX_SIZE,
+            command_timeout=DB_POOL_TIMEOUT,
+            max_inactive_connection_lifetime=DB_POOL_MAX_INACTIVE_LIFETIME,
+            # Additional serverless optimizations
+            server_settings={
+                'application_name': 'mcp_task_server',
+                'jit': 'off',  # Disable JIT for faster cold starts
+            }
         )
+        print(f"✅ Database pool created: min={DB_POOL_MIN_SIZE}, max={DB_POOL_MAX_SIZE}, timeout={DB_POOL_TIMEOUT}s")
     return _pool
 
 
 async def close_pool():
-    """Close the connection pool."""
+    """Close the connection pool gracefully."""
     global _pool
     if _pool:
         await _pool.close()
         _pool = None
+        print("🛑 Database pool closed")
 
 
 # Register MCP tools
 @mcp.tool()
 async def add_task(
     title: str,
+    authorization: str,
     description: str | None = None,
     due_date: str | None = None,
     priority: str = "medium",
     tags: list[str] | None = None,
-    user_id: str = "default_user",
 ) -> dict[str, Any]:
-    """Add a new task to the user's task list."""
+    """Add a new task to the user's task list.
+
+    Args:
+        title: Task title (required)
+        authorization: Bearer token for authentication (required)
+        description: Optional task description
+        due_date: Optional due date (ISO format or parseable date string)
+        priority: Task priority (low, medium, high)
+        tags: Optional list of tag names
+
+    Returns:
+        Dictionary with success status, task data, and message
+    """
     pool = await get_pool()
+
+    # Authenticate and get user_id
+    try:
+        user_id = await extract_user_id_from_authorization(authorization, pool)
+    except ValueError as e:
+        return {"success": False, "error": f"Authentication failed: {str(e)}"}
+
     async with pool.acquire() as conn:
         async with conn.transaction():
             try:
@@ -219,13 +272,30 @@ async def add_task(
 
 @mcp.tool()
 async def list_tasks(
+    authorization: str,
     status: str | None = None,
     priority: str | None = None,
     tags: list[str] | None = None,
-    user_id: str = "default_user",
 ) -> dict[str, Any]:
-    """List tasks with optional filters."""
+    """List tasks with optional filters.
+
+    Args:
+        authorization: Bearer token for authentication (required)
+        status: Filter by status (pending, completed)
+        priority: Filter by priority (low, medium, high)
+        tags: Filter by tag names (not yet implemented)
+
+    Returns:
+        Dictionary with success status, tasks list, and count
+    """
     pool = await get_pool()
+
+    # Authenticate and get user_id
+    try:
+        user_id = await extract_user_id_from_authorization(authorization, pool)
+    except ValueError as e:
+        return {"success": False, "error": f"Authentication failed: {str(e)}"}
+
     async with pool.acquire() as conn:
         try:
             # Build query
@@ -287,10 +357,25 @@ async def list_tasks(
 @mcp.tool()
 async def complete_task(
     task_id: str,
-    user_id: str = "default_user",
+    authorization: str,
 ) -> dict[str, Any]:
-    """Mark a task as complete."""
+    """Mark a task as complete.
+
+    Args:
+        task_id: ID of the task to complete
+        authorization: Bearer token for authentication (required)
+
+    Returns:
+        Dictionary with success status, task data, and message
+    """
     pool = await get_pool()
+
+    # Authenticate and get user_id
+    try:
+        user_id = await extract_user_id_from_authorization(authorization, pool)
+    except ValueError as e:
+        return {"success": False, "error": f"Authentication failed: {str(e)}"}
+
     async with pool.acquire() as conn:
         async with conn.transaction():
             try:
@@ -330,10 +415,25 @@ async def complete_task(
 @mcp.tool()
 async def delete_task(
     task_id: str,
-    user_id: str = "default_user",
+    authorization: str,
 ) -> dict[str, Any]:
-    """Delete a task (soft delete)."""
+    """Delete a task (soft delete).
+
+    Args:
+        task_id: ID of the task to delete
+        authorization: Bearer token for authentication (required)
+
+    Returns:
+        Dictionary with success status, task data, and message
+    """
     pool = await get_pool()
+
+    # Authenticate and get user_id
+    try:
+        user_id = await extract_user_id_from_authorization(authorization, pool)
+    except ValueError as e:
+        return {"success": False, "error": f"Authentication failed: {str(e)}"}
+
     async with pool.acquire() as conn:
         async with conn.transaction():
             try:
@@ -364,14 +464,33 @@ async def delete_task(
 @mcp.tool()
 async def update_task(
     task_id: str,
+    authorization: str,
     title: str | None = None,
     description: str | None = None,
     priority: str | None = None,
     due_date: str | None = None,
-    user_id: str = "default_user",
 ) -> dict[str, Any]:
-    """Update an existing task."""
+    """Update an existing task.
+
+    Args:
+        task_id: ID of the task to update
+        authorization: Bearer token for authentication (required)
+        title: New title (optional)
+        description: New description (optional)
+        priority: New priority (optional)
+        due_date: New due date (optional)
+
+    Returns:
+        Dictionary with success status, task data, and message
+    """
     pool = await get_pool()
+
+    # Authenticate and get user_id
+    try:
+        user_id = await extract_user_id_from_authorization(authorization, pool)
+    except ValueError as e:
+        return {"success": False, "error": f"Authentication failed: {str(e)}"}
+
     async with pool.acquire() as conn:
         try:
             task = await conn.fetchrow(
@@ -464,21 +583,16 @@ async def root():
     }
 
 
-# CRITICAL FIX: Monkey-patch TransportSecurityMiddleware to disable DNS rebinding protection
-# The MCP SDK's TransportSecurityMiddleware validates Host headers and blocks Vercel requests
-from mcp.server.transport_security import TransportSecurityMiddleware
-
-# Store the original method
-_original_validate_host = TransportSecurityMiddleware._validate_host
-
-# Override to always return True (allow all hosts)
-def _patched_validate_host(self, host):
-    """Patched version that allows all hosts for Vercel deployment"""
-    return True
-
-# Apply the monkey patch
-TransportSecurityMiddleware._validate_host = _patched_validate_host
-print("✅ Patched TransportSecurityMiddleware to allow all hosts (Vercel compatibility)")
+# Configure allowed hosts for TransportSecurityMiddleware
+# In production, set ALLOWED_HOSTS environment variable to comma-separated list of domains
+# Example: ALLOWED_HOSTS="your-mcp-server.vercel.app,your-custom-domain.com"
+ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "").split(",")
+if ALLOWED_HOSTS == [""]:
+    # Development mode - allow localhost
+    ALLOWED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0"]
+    print("⚠️  Running in development mode with unrestricted host access")
+else:
+    print(f"✅ Allowed hosts configured: {', '.join(ALLOWED_HOSTS)}")
 
 # Mount MCP at /mcp
 # Use streamable_http_app() method (correct API for FastMCP)
