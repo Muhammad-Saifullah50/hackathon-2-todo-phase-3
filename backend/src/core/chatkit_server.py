@@ -292,9 +292,12 @@ class TodoMoreChatKitServer(ChatKitServer):
                         "Content-Type": "application/json",
                     },
                     "timeout": 30,
+                    "sse_read_timeout": 300,  # 5 minutes for long-running operations
+                    "terminate_on_close": False,  # CRITICAL: Don't terminate session on close
                 },
                 cache_tools_list=False,  # Don't cache in serverless
                 max_retry_attempts=2,
+                client_session_timeout_seconds=60,  # Increase client session timeout
             )
 
             # Connect to MCP server with timeout
