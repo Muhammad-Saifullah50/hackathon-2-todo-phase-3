@@ -350,7 +350,7 @@ export function useBulkToggle() {
     },
 
     onSuccess: (data) => {
-      const count = data.data?.updated_count || 0;
+      const count = data?.updated_count || 0;
       toast({
         title: "Tasks updated",
         description: `Successfully updated ${count} task${count === 1 ? '' : 's'}.`,
@@ -496,7 +496,7 @@ export function useBulkDelete() {
     },
 
     onSuccess: (data) => {
-      const count = data.data?.updated_count || 0;
+      const count = data?.updated_count || 0;
       toast({
         title: "Tasks moved to trash",
         description: `Successfully moved ${count} task${count === 1 ? '' : 's'} to trash.`,
