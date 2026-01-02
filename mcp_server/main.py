@@ -463,11 +463,7 @@ TransportSecurityMiddleware._validate_host = _patched_validate_host
 print("✅ Patched TransportSecurityMiddleware to allow all hosts (Vercel compatibility)")
 
 # Mount MCP at /mcp
-# Use http_app() with streamable-http transport (required for OpenAI Agents SDK)
-mcp_app = mcp.http_app(
-    path="/",  # Root of the mounted app
-    transport="streamable-http",  # Required for OpenAI Agents SDK
-    stateless_http=True,  # Already set in FastMCP constructor, but explicit here
-)
+# Use streamable_http_app() method (correct API for FastMCP)
+mcp_app = mcp.streamable_http_app()
 
 app.mount("/mcp", mcp_app)
