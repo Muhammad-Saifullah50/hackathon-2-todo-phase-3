@@ -59,54 +59,40 @@ export function useChatTaskSync(options: UseChatTaskSyncOptions = {}) {
    */
   const revalidateTasks = useCallback(async () => {
     const now = Date.now();
-    // Debounce: don't revalidate if we just did it (within 1 second)
-    if (now - lastRevalidationRef.current < 1000) {
+    // Reduced debounce: don't revalidate if we just did it (within 300ms)
+    if (now - lastRevalidationRef.current < 300) {
       console.log('[ChatTaskSync] Skipping revalidation (debounced)');
       return;
     }
     lastRevalidationRef.current = now;
 
-    console.log('[ChatTaskSync] Triggering full revalidation...');
+    console.log('[ChatTaskSync] Triggering instant revalidation...');
 
-    // 1. Trigger Next.js server-side revalidation via API
-    try {
-      const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-      const response = await fetch(`${baseURL}/api/revalidate/tasks`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'chatbot_task_change' }),
-      });
-      if (response.ok) {
-        console.log('[ChatTaskSync] Server revalidation triggered');
-      } else {
-        console.error('[ChatTaskSync] Server revalidation failed:', response.status);
-      }
-    } catch (error) {
-      console.error('[ChatTaskSync] Failed to trigger server revalidation:', error);
-    }
+    // 1. Immediately refetch tasks to update UI (don't wait for server)
+    console.log('[ChatTaskSync] Refetching tasks data instantly...');
+    queryClient.refetchQueries({ queryKey: ['tasks'] });
 
     // 2. Invalidate ALL React Query caches that might contain task data
-    console.log('[ChatTaskSync] Invalidating React Query cache...');
-    await queryClient.invalidateQueries({ queryKey: ['tasks'] });
-    await queryClient.invalidateQueries({ queryKey: ['task'] });
-    await queryClient.invalidateQueries({ queryKey: ['analytics'] });
-    await queryClient.invalidateQueries({ queryKey: ['tags'] });
-    await queryClient.invalidateQueries({ queryKey: ['trash'] });
+    // This marks them as stale but doesn't block the UI
+    queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    queryClient.invalidateQueries({ queryKey: ['task'] });
+    queryClient.invalidateQueries({ queryKey: ['analytics'] });
+    queryClient.invalidateQueries({ queryKey: ['tags'] });
+    queryClient.invalidateQueries({ queryKey: ['trash'] });
 
-    // 3. Also refetch tasks immediately to update UI
-    console.log('[ChatTaskSync] Refetching tasks data...');
-    await queryClient.refetchQueries({ queryKey: ['tasks'] });
-
-    // 4. Trigger Next.js router refresh for server components
+    // 3. Trigger Next.js router refresh for server components (once only)
     router.refresh();
-    console.log('[ChatTaskSync] Router refresh triggered');
 
-    // 5. Force a hard refresh of the page after a short delay
-    // This ensures all server components re-render with fresh data
-    setTimeout(() => {
-      router.refresh();
-      console.log('[ChatTaskSync] Second router refresh triggered');
-    }, 500);
+    // 4. Trigger Next.js server-side revalidation via API (async, non-blocking)
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/revalidate/tasks`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'chatbot_task_change' }),
+    }).catch(error => {
+      console.error('[ChatTaskSync] Failed to trigger server revalidation:', error);
+    });
+
+    console.log('[ChatTaskSync] Revalidation complete');
   }, [queryClient, router]);
 
   // Expose revalidateTasks globally for chatbot to call

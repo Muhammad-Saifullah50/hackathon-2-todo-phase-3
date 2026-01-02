@@ -564,13 +564,7 @@ user_id is always: "{user_id}"
             saved_message_ids = set()  # Track which messages we've already saved
 
             # SESSION DEDUPLICATION: Track messages sent in this specific response stream
-            sent_message_fingerprints = set()
-            last_content_fingerprint = None
-
-            def get_content_fingerprint(content: str) -> str:
-                """Create a normalized fingerprint for duplicate detection."""
-                # Normalize: lowercase, remove extra whitespace, take first 200 chars
-                return " ".join(content.lower().split())[:200]
+            sent_message_ids = set()  # Track by message ID instead of content
 
             logger.info("🔥 Streaming agent response")
 
@@ -591,14 +585,19 @@ user_id is always: "{user_id}"
                     has_revalidated = True
                     logger.info("⚡ Triggered fast revalidation after item added")
 
-                # DEDUPLICATION LOGIC
+                # DEDUPLICATION LOGIC: Only process each message ID once
                 if (
                     hasattr(event, "item")
                     and hasattr(event, "type")
                     and event.type == "thread.item.done"
                     and event.item.type == "assistant_message"
                 ):
-                    # Extract content
+                    # Check if we've already sent this message ID
+                    if event.item.id in sent_message_ids:
+                        logger.warning(f"🚫 BLOCKED DUPLICATE MESSAGE ID: {event.item.id}")
+                        continue
+
+                    # Extract content for logging
                     content = ""
                     if hasattr(event.item, "content") and event.item.content:
                         if isinstance(event.item.content, list):
@@ -612,27 +611,14 @@ user_id is always: "{user_id}"
                             content = str(event.item.content)
 
                     if not content.strip():
+                        logger.info("⏭️ Skipping empty message")
                         continue
 
-                    fingerprint = get_content_fingerprint(content)
+                    # Record this message ID as sent
+                    sent_message_ids.add(event.item.id)
+                    logger.info(f"📤 Agent message ({event.item.id}): {content[:100]}...")
 
-                    # BLOCK DUPLICATES: If we've seen this exact content (or very near it)
-                    # in this session, skip yielding the event entirely.
-                    if fingerprint in sent_message_fingerprints:
-                        logger.warning(f"🚫 BLOCKED DUPLICATE: {fingerprint[:50]}...")
-                        continue
-
-                    # Also check near-duplicates against the last sent message
-                    if last_content_fingerprint and (fingerprint in last_content_fingerprint or last_content_fingerprint in fingerprint):
-                        logger.warning(f"🚫 BLOCKED NEAR-DUPLICATE: {fingerprint[:50]}...")
-                        continue
-
-                    # Record this message as sent
-                    sent_message_fingerprints.add(fingerprint)
-                    last_content_fingerprint = fingerprint
-                    logger.info(f"📤 Agent message: {content[:100]}...")
-
-                    # CRITICAL FIX: Ensure we only save and yield if it's the first time
+                    # Save to database if needed
                     try:
                         if event.item.id == "__fake_id__":
                             event.item.id = self.store.generate_item_id("message", thread, context)

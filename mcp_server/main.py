@@ -134,13 +134,21 @@ async def add_task(
     async with pool.acquire() as conn:
         async with conn.transaction():
             try:
-                # Parse due date
+                # Parse due date with proper timezone handling
                 parsed_due_date = None
                 if due_date:
                     try:
+                        # Parse the date with dateutil parser
                         parsed_due_date = parser.parse(due_date)
-                    except:
-                        return {"error": f"Invalid date format: {due_date}", "success": False}
+
+                        # If the parsed date is naive (no timezone), assume UTC
+                        if parsed_due_date.tzinfo is None:
+                            parsed_due_date = parsed_due_date.replace(tzinfo=timezone.utc)
+                        else:
+                            # Convert to UTC if it has a different timezone
+                            parsed_due_date = parsed_due_date.astimezone(timezone.utc)
+                    except Exception as e:
+                        return {"error": f"Invalid date format '{due_date}': {str(e)}", "success": False}
 
                 # Validate priority
                 priority_lower = priority.lower()
@@ -394,9 +402,19 @@ async def update_task(
 
             if due_date is not None:
                 try:
-                    updates["due_date"] = parser.parse(due_date)
-                except:
-                    return {"error": f"Invalid date format: {due_date}", "success": False}
+                    # Parse the date with proper timezone handling
+                    parsed_due_date = parser.parse(due_date)
+
+                    # If the parsed date is naive (no timezone), assume UTC
+                    if parsed_due_date.tzinfo is None:
+                        parsed_due_date = parsed_due_date.replace(tzinfo=timezone.utc)
+                    else:
+                        # Convert to UTC if it has a different timezone
+                        parsed_due_date = parsed_due_date.astimezone(timezone.utc)
+
+                    updates["due_date"] = parsed_due_date
+                except Exception as e:
+                    return {"error": f"Invalid date format '{due_date}': {str(e)}", "success": False}
 
             if not updates:
                 return {"error": "No valid updates provided", "success": False}
