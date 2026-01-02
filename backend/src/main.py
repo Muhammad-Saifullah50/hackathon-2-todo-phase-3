@@ -7,8 +7,11 @@ The chat server connects to the external MCP server URL.
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 from src.api.routes import health, recurring, search, subtasks, tags, tasks, templates, user
 from src.api.routes.chatkit import router as chatkit_router
@@ -17,6 +20,9 @@ from src.core import setup_logging
 
 # Initialize logging
 setup_logging(level=settings.LOG_LEVEL, json_logs=False)
+
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
 
 
 @asynccontextmanager
@@ -47,6 +53,10 @@ app = FastAPI(
     description="FastAPI backend for TodoMore application",
     lifespan=lifespan,
 )
+
+# Attach rate limiter to app
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Configure CORS
 app.add_middleware(

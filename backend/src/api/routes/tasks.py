@@ -3,8 +3,10 @@
 import logging
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import ValidationError
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import get_current_user
@@ -29,6 +31,7 @@ from src.services.task_service import TaskService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
+limiter = Limiter(key_func=get_remote_address)
 
 
 @router.post(
@@ -36,7 +39,9 @@ router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
     status_code=status.HTTP_201_CREATED,
     response_model=StandardizedResponse[TaskResponse],
 )
+@limiter.limit("100/minute")
 async def create_task(
+    request: Request,
     task_data: TaskCreate,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
