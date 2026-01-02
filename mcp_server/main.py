@@ -39,13 +39,14 @@ mcp = FastMCP(
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Lifespan for MCP server."""
-    print("MCP Server starting up...")
+    print("🚀 MCP Server starting up...")
     async with contextlib.AsyncExitStack() as stack:
         # CRITICAL: Start the session manager task group for streamable HTTP
         # This is required when mounting the app inside FastAPI
         await stack.enter_async_context(mcp.session_manager.run())
+        print("✅ Session manager started successfully")
         yield
-    print("MCP Server shutting down...")
+    print("🛑 MCP Server shutting down...")
 
 
 # Create FastAPI app for Vercel with disabled docs to reduce overhead

@@ -281,26 +281,30 @@ class TodoMoreChatKitServer(ChatKitServer):
 
         # Create MCP server connection with error handling
         try:
+            # Important: Don't cache tools list for serverless environments
+            # Each request should be stateless
             mcp_server = MCPServerStreamableHttp(
                 name="Task Management Server",
                 params={
                     "url": settings.MCP_SERVER_URL,
                     "headers": {
                         "Authorization": f"Bearer {settings.MCP_SERVER_TOKEN}",
+                        "Content-Type": "application/json",
                     },
                     "timeout": 30,
                 },
-                cache_tools_list=True,
-                max_retry_attempts=3,
+                cache_tools_list=False,  # Don't cache in serverless
+                max_retry_attempts=2,
             )
 
             # Connect to MCP server with timeout
-            async with asyncio.timeout(10):  # 10 second timeout
+            # Use shorter timeout for faster fallback to degraded mode
+            async with asyncio.timeout(5):  # 5 second timeout
                 await mcp_server.connect()
                 logger.info("✅ Connected to MCP server: %s", settings.MCP_SERVER_URL)
 
         except asyncio.TimeoutError:
-            logger.error("❌ MCP server connection timeout after 10s")
+            logger.error("❌ MCP server connection timeout after 5s")
             raise Exception(f"MCP server at {settings.MCP_SERVER_URL} connection timeout")
         except httpx.HTTPStatusError as e:
             logger.error(f"❌ MCP server HTTP error: {e.response.status_code} - {e}")
