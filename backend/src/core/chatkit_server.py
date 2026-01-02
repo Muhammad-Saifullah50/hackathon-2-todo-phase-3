@@ -290,6 +290,7 @@ class TodoMoreChatKitServer(ChatKitServer):
                     "headers": {
                         "Authorization": f"Bearer {settings.MCP_SERVER_TOKEN}",
                         "Content-Type": "application/json",
+                        "Accept": "application/json",  # Required by MCP server
                     },
                     "timeout": 30,
                     "sse_read_timeout": 300,  # 5 minutes for long-running operations
