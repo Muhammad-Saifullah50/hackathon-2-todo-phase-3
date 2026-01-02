@@ -446,28 +446,28 @@ async def root():
     }
 
 
+# CRITICAL FIX: Monkey-patch TransportSecurityMiddleware to disable DNS rebinding protection
+# The MCP SDK's TransportSecurityMiddleware validates Host headers and blocks Vercel requests
+from mcp.server.transport_security import TransportSecurityMiddleware
+
+# Store the original method
+_original_validate_host = TransportSecurityMiddleware._validate_host
+
+# Override to always return True (allow all hosts)
+def _patched_validate_host(self, host):
+    """Patched version that allows all hosts for Vercel deployment"""
+    return True
+
+# Apply the monkey patch
+TransportSecurityMiddleware._validate_host = _patched_validate_host
+print("✅ Patched TransportSecurityMiddleware to allow all hosts (Vercel compatibility)")
+
 # Mount MCP at /mcp
-mcp_app = mcp.streamable_http_app()
-
-# CRITICAL FIX: Disable DNS rebinding protection for Vercel deployment
-# The MCP SDK's TransportSecurityMiddleware blocks requests with "Invalid Host header"
-# when deployed on Vercel because the Host header doesn't match the expected domain
-from mcp.server.transport_security import TransportSecuritySettings
-
-# Patch the security middleware to disable host validation
-for middleware in mcp_app.user_middleware:
-    if hasattr(middleware, 'cls') and 'TransportSecurity' in str(middleware.cls):
-        # Recreate the middleware with disabled protection
-        from mcp.server.transport_security import TransportSecurityMiddleware
-        mcp_app.user_middleware.remove(middleware)
-        mcp_app.add_middleware(
-            TransportSecurityMiddleware,
-            settings=TransportSecuritySettings(
-                enable_dns_rebinding_protection=False,  # Disable for Vercel
-                allowed_hosts=[],
-                allowed_origins=[]
-            )
-        )
-        break
+# Use http_app() with streamable-http transport (required for OpenAI Agents SDK)
+mcp_app = mcp.http_app(
+    path="/",  # Root of the mounted app
+    transport="streamable-http",  # Required for OpenAI Agents SDK
+    stateless_http=True,  # Already set in FastMCP constructor, but explicit here
+)
 
 app.mount("/mcp", mcp_app)
