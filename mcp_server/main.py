@@ -150,8 +150,8 @@ async def add_task(
                         "success": False,
                     }
 
-                # Create task
-                task_id = f"task_{uuid.uuid4().hex[:12]}"
+                # Create task with proper UUID
+                task_id = str(uuid.uuid4())
                 now = datetime.now(timezone.utc)
 
                 await conn.execute(
@@ -166,7 +166,7 @@ async def add_task(
                 task_tags = []
                 if tags:
                     for tag_name in tags:
-                        tag_id = f"tag_{uuid.uuid4().hex[:8]}"
+                        tag_id = str(uuid.uuid4())
                         tag_color = "#3B82F6"
 
                         # Check if tag exists
