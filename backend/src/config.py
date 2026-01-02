@@ -56,6 +56,28 @@ def _get_mcp_root_url() -> str:
     return f"http://{host}:{port}"
 
 
+def _get_frontend_url() -> str:
+    """Build frontend URL dynamically based on environment.
+
+    Priority:
+    1. FRONTEND_URL environment variable (explicit override)
+    2. VERCEL_URL (production deployment)
+    3. Localhost (development fallback)
+    """
+    # Check for explicit frontend URL
+    frontend_url = os.getenv("FRONTEND_URL")
+    if frontend_url:
+        return frontend_url
+
+    # In production, use Vercel URL
+    vercel_url = os.getenv("VERCEL_URL")
+    if vercel_url:
+        return f"https://{vercel_url}"
+
+    # Development fallback
+    return "http://localhost:3000"
+
+
 def _get_default_cors_origins() -> List[str]:
     """Build CORS origins dynamically based on environment."""
     vercel_url = os.getenv("VERCEL_URL")
@@ -73,8 +95,8 @@ class Settings(BaseSettings):
     CORS_ORIGINS: List[str] = _get_default_cors_origins()
     LOG_LEVEL: str = "INFO"
     ENVIRONMENT: str = "development"
-    # Frontend URL for revalidation calls
-    FRONTEND_URL: str = "http://localhost:3000"
+    # Frontend URL for revalidation calls - dynamically computed
+    FRONTEND_URL: str = _get_frontend_url()
     # MCP Server Configuration - dynamically computed
     MCP_SERVER_URL: str = _get_mcp_server_url()
     MCP_SERVER_TOKEN: str = "default-mcp-token"

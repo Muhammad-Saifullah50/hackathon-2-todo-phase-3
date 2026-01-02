@@ -278,6 +278,7 @@ class TodoMoreChatKitServer(ChatKitServer):
         """
         import httpx
         import asyncio
+        from datetime import datetime, timedelta, timezone
 
         # Create MCP server connection with error handling
         try:
@@ -317,6 +318,10 @@ class TodoMoreChatKitServer(ChatKitServer):
             logger.error(f"❌ Failed to connect to MCP server: {e}")
             raise
 
+        # Calculate current date and tomorrow for agent instructions
+        now_utc = datetime.now(timezone.utc)
+        today_str = now_utc.strftime("%Y-%m-%d")
+        tomorrow_str = (now_utc + timedelta(days=1)).strftime("%Y-%m-%d")
 
         # Create task management agent with MCP server
         agent = Agent(
@@ -376,6 +381,14 @@ After receiving the tool output, provide a single, friendly response:
 1. **Listing tasks**: Call list_tasks with {{"user_id": "{user_id}"}} or {{"status": "pending", "user_id": "{user_id}"}}
 
 2. **Creating tasks**: Call add_task with {{"title": "Task name", "user_id": "{user_id}"}}
+   - For due dates, convert relative dates to ISO format YYYY-MM-DD
+   - TODAY is: {today_str}
+   - TOMORROW is: {tomorrow_str}
+   - Examples:
+     * "tomorrow" → use "{tomorrow_str}"
+     * "today" → use "{today_str}"
+     * "next Monday" → calculate the actual date in YYYY-MM-DD format
+   - Pass the ISO date string in the due_date parameter
 
 3. **Completing tasks**: FIRST call list_tasks to find the task, THEN call complete_task with the actual task_id
 
@@ -393,6 +406,9 @@ user_id is always: "{user_id}"
                 temperature=0.7,  # Slightly higher for more natural, conversational responses
                 max_tokens=1024,
                 tool_choice="auto",  # Allow agent to decide when to use tools vs respond naturally
+                extra_args={
+                    "parallel_tool_calls": False,  # CRITICAL: Disable parallel tool calls to prevent duplicates
+                },
             ),
             mcp_servers=[mcp_server],
         )
