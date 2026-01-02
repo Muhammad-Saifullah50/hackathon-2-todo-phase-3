@@ -199,7 +199,8 @@ async def test_update_tag_duplicate_name(
 
     assert response.status_code == 409  # CONFLICT
     data = response.json()
-    assert "already exists" in data["detail"]["error"]["message"].lower()
+    assert data["success"] is False
+    assert "already exists" in data["error"]["message"].lower()
 
 
 @pytest.mark.asyncio
@@ -267,7 +268,8 @@ async def test_delete_tag_not_found(auth_client: AsyncClient, test_user: User):
 
     assert response.status_code == 404
     data = response.json()
-    assert "not found" in data["detail"]["error"]["message"].lower()
+    assert data["success"] is False
+    assert "not found" in data["error"]["message"].lower()
 
 
 @pytest.mark.asyncio

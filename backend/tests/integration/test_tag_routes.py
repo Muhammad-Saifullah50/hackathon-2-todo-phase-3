@@ -47,11 +47,10 @@ async def test_create_tag_duplicate_name(auth_client: AsyncClient, test_user: Us
 
     assert response.status_code == 409  # CONFLICT
     response_data = response.json()
-    # HTTPException detail is returned directly in the response under "detail" key
-    assert "detail" in response_data
-    detail = response_data["detail"]
-    assert detail["success"] is False
-    assert "already exists" in detail["error"]["message"].lower()
+    # Standardized error response format
+    assert response_data["success"] is False
+    assert "error" in response_data
+    assert "already exists" in response_data["error"]["message"].lower()
 
 
 @pytest.mark.asyncio

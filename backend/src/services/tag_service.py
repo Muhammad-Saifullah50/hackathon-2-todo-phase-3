@@ -7,6 +7,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from src.core.sanitization import sanitize_text
 from src.models.tag import Tag, TagCreate, TagUpdate
 from src.models.task_tag import TaskTag
 
@@ -42,22 +43,27 @@ class TagService:
         Raises:
             ValueError: If validation fails or tag name already exists.
         """
+        # Sanitize tag name to prevent XSS
+        sanitized_name = sanitize_text(tag_data.name, max_length=50)
+        if not sanitized_name:
+            raise ValueError("Tag name cannot be empty after sanitization")
+
         # Check if tag with same name already exists for this user (case-insensitive)
         existing_query = select(Tag).where(
             and_(
                 Tag.user_id == user_id,
-                func.lower(Tag.name) == tag_data.name.lower(),
+                func.lower(Tag.name) == sanitized_name.lower(),
             )
         )
         result = await self.session.execute(existing_query)
         existing_tag = result.scalar_one_or_none()
 
         if existing_tag:
-            raise ValueError(f"Tag with name '{tag_data.name}' already exists")
+            raise ValueError(f"Tag with name '{sanitized_name}' already exists")
 
         # Create Tag instance
         tag = Tag(
-            name=tag_data.name,
+            name=sanitized_name,
             color=tag_data.color,
             user_id=user_id,
         )

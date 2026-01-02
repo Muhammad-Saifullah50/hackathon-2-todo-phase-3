@@ -28,6 +28,7 @@ dependencies = [
     "mcp",
     "openai-chatkit>=1.0.0",
     "slowapi>=0.1.9",
+    "bleach>=6.0.0",
 ]
 
 [project.optional-dependencies]

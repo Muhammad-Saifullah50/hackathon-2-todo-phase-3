@@ -7,7 +7,8 @@ The chat server connects to the external MCP server URL.
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -17,6 +18,11 @@ from src.api.routes import health, recurring, search, subtasks, tags, tasks, tem
 from src.api.routes.chatkit import router as chatkit_router
 from src.config import settings
 from src.core import setup_logging
+from src.core.exceptions import (
+    general_exception_handler,
+    http_exception_handler,
+    validation_exception_handler,
+)
 
 # Initialize logging
 setup_logging(level=settings.LOG_LEVEL, json_logs=False)
@@ -57,6 +63,11 @@ app = FastAPI(
 # Attach rate limiter to app
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Register global exception handlers for standardized error responses
+app.add_exception_handler(HTTPException, http_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(Exception, general_exception_handler)
 
 # Configure CORS
 app.add_middleware(

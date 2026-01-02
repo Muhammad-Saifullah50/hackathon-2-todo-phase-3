@@ -7,6 +7,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from src.core.sanitization import sanitize_html, sanitize_text
 from src.models.task import Task, TaskCreate, TaskPriority, TaskResponse, TaskStatus
 from src.models.tag import Tag
 from src.models.task_tag import TaskTag
@@ -45,14 +46,19 @@ class TaskService:
             ValueError: If validation fails.
             SQLAlchemyError: If database operation fails.
         """
+        # Sanitize user inputs to prevent XSS attacks
+        sanitized_title = sanitize_text(task_data.title, max_length=100)
+        sanitized_description = sanitize_text(task_data.description, max_length=500)
+        sanitized_notes = sanitize_html(task_data.notes)  # Notes can contain basic formatting
+
         # Create Task instance
         task = Task(
-            title=task_data.title,  # Already validated and trimmed by Pydantic
-            description=task_data.description,  # Already validated and trimmed
+            title=sanitized_title or task_data.title,  # Fallback to original if sanitization fails
+            description=sanitized_description,
             status=TaskStatus.PENDING,  # Always pending on creation
             priority=task_data.priority or TaskPriority.MEDIUM,  # Default to MEDIUM
             due_date=task_data.due_date,  # Optional due date
-            notes=task_data.notes,  # Optional notes
+            notes=sanitized_notes,  # Sanitized HTML notes
             user_id=user_id,
             # Timestamps are auto-set by TimestampMixin/database
         )
