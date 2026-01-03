@@ -12,6 +12,7 @@ from typing import AsyncGenerator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 
 # Import environment setup
 from dotenv import load_dotenv
@@ -27,6 +28,19 @@ elif os.path.exists(backend_env_path):
     load_dotenv(backend_env_path)
     print(f"✅ Loaded env from {backend_env_path}")
 
+# Get allowed hosts from environment variable (comma-separated list)
+# For Vercel, include the deployment domain
+allowed_hosts_env = os.getenv("ALLOWED_HOSTS", "")
+if allowed_hosts_env:
+    # Parse comma-separated hosts and add wildcard port support
+    allowed_hosts = [host.strip() if ":*" in host else f"{host.strip()}:*"
+                     for host in allowed_hosts_env.split(",") if host.strip()]
+    print(f"✅ Allowed hosts configured: {', '.join(allowed_hosts)}")
+else:
+    # Development mode - allow localhost and common development hosts
+    allowed_hosts = ["localhost:*", "127.0.0.1:*", "0.0.0.0:*"]
+    print("⚠️  Running in development mode - allowing localhost only")
+
 # Create MCP server instance with stateless configuration for serverless/production
 # Note: streamable_http_path should be "/" because we mount the entire app at /mcp
 # The MCP protocol endpoints will be available at /mcp/sse, /mcp/message, etc.
@@ -35,6 +49,12 @@ mcp = FastMCP(
     stateless_http=True,
     json_response=True,
     streamable_http_path="/",  # Root of the mounted app (which is at /mcp)
+    transport_security=TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=allowed_hosts,
+        # Allow all origins since we're behind Vercel's proxy
+        allowed_origins=["*"],
+    ),
 )
 
 
@@ -582,17 +602,6 @@ async def root():
         "mcp_endpoint": "/mcp"
     }
 
-
-# Configure allowed hosts for TransportSecurityMiddleware
-# In production, set ALLOWED_HOSTS environment variable to comma-separated list of domains
-# Example: ALLOWED_HOSTS="your-mcp-server.vercel.app,your-custom-domain.com"
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "").split(",")
-if ALLOWED_HOSTS == [""]:
-    # Development mode - allow localhost
-    ALLOWED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0"]
-    print("⚠️  Running in development mode with unrestricted host access")
-else:
-    print(f"✅ Allowed hosts configured: {', '.join(ALLOWED_HOSTS)}")
 
 # Mount MCP at /mcp
 # Use streamable_http_app() method (correct API for FastMCP)
