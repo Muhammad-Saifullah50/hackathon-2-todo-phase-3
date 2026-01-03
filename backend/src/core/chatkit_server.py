@@ -189,7 +189,7 @@ title_agent = Agent(
 
     Return ONLY the title text, nothing else.""",
     model=LitellmModel(
-        model="openrouter/qwen/qwen3-coder",
+        model="openrouter/qwen/qwen3-coder:free",
         api_key=settings.OPENROUTER_API_KEY,
     ),
     model_settings=ModelSettings(
@@ -424,7 +424,7 @@ Remember: Always use clean JSON for arguments, and respond naturally like a help
 user_id is always: "{user_id}"
 """,
             model=LitellmModel(
-                model="openrouter/qwen/qwen3-coder",
+                model="openrouter/qwen/qwen3-coder:free",
                 api_key=settings.OPENROUTER_API_KEY,
             ),
             model_settings=ModelSettings(
