@@ -632,7 +632,18 @@ Your user_id is always: "{user_id}"
                     has_revalidated = True
                     logger.info("⚡ Triggered fast revalidation after item added")
 
-                # DEDUPLICATION LOGIC: Only process and yield each message once
+                # Skip streaming updates (thread.item.updated) for assistant messages
+                # Only show final complete message (thread.item.done)
+                if (
+                    hasattr(event, "type")
+                    and event.type == "thread.item.updated"
+                    and hasattr(event, "item")
+                    and event.item.type == "assistant_message"
+                ):
+                    logger.debug(f"⏭️ Skipping streaming update for assistant message")
+                    continue  # Don't yield streaming deltas
+
+                # DEDUPLICATION LOGIC: Only process and yield final complete messages
                 if (
                     hasattr(event, "item")
                     and hasattr(event, "type")
@@ -656,6 +667,14 @@ Your user_id is always: "{user_id}"
                         logger.info("⏭️ Skipping empty message")
                         continue  # Don't yield empty messages
 
+                    # Normalize content for comparison (remove extra whitespace)
+                    normalized_content = " ".join(content.split())
+
+                    # Check if we've already sent this exact message content
+                    if normalized_content in sent_message_content:
+                        logger.warning(f"🚫 BLOCKED DUPLICATE MESSAGE CONTENT: {normalized_content[:100]}...")
+                        continue  # Don't yield duplicate content
+
                     # Check if we've already sent this message ID
                     if event.item.id in sent_message_ids:
                         logger.warning(f"🚫 BLOCKED DUPLICATE MESSAGE ID: {event.item.id}")
@@ -666,8 +685,9 @@ Your user_id is always: "{user_id}"
                         event.item.id = self.store.generate_item_id("message", thread, context)
                         logger.info(f"✨ Generated new message ID: {event.item.id}")
 
-                    # Record this message ID as sent
+                    # Record this message ID and content as sent
                     sent_message_ids.add(event.item.id)
+                    sent_message_content.add(normalized_content)
                     logger.info(f"📤 Agent message ({event.item.id}): {content[:100]}...")
 
                     # Save to database if needed
@@ -678,10 +698,10 @@ Your user_id is always: "{user_id}"
                     except Exception as save_err:
                         logger.error(f"❌ Failed to save assistant message: {save_err}")
 
-                    # CRITICAL: Only yield the event AFTER passing all checks
+                    # CRITICAL: Only yield the final complete event
                     yield event
                 else:
-                    # For non-assistant-message events, yield normally
+                    # For non-assistant-message events (tool calls, etc.), yield normally
                     yield event
 
             logger.info(

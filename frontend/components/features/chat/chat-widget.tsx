@@ -14,9 +14,10 @@ export function ChatWidget() {
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
 
   // Automatically sync task data when chat is open and chatbot makes changes
+  // Disable automatic refetch on focus/visibility since we handle it via onResponseEnd
   useChatTaskSync({
-    refetchOnWindowFocus: true,
-    refetchOnVisibilityChange: true,
+    refetchOnWindowFocus: false,
+    refetchOnVisibilityChange: false,
   });
 
   // Custom fetch function that adds authentication headers
