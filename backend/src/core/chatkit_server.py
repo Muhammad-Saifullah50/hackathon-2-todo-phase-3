@@ -611,7 +611,8 @@ Your user_id is always: "{user_id}"
             saved_message_ids = set()  # Track which messages we've already saved
 
             # SESSION DEDUPLICATION: Track messages sent in this specific response stream
-            sent_message_ids = set()  # Track by message ID instead of content
+            sent_message_ids = set()  # Track by message ID
+            sent_message_content = set()  # Track by message content to catch duplicates
 
             logger.info("🔥 Streaming agent response")
 
