@@ -32,13 +32,19 @@ elif os.path.exists(backend_env_path):
 # For Vercel, include the deployment domain
 allowed_hosts_env = os.getenv("ALLOWED_HOSTS", "")
 if allowed_hosts_env:
-    # Parse comma-separated hosts and add wildcard port support
-    allowed_hosts = [host.strip() if ":*" in host else f"{host.strip()}:*"
-                     for host in allowed_hosts_env.split(",") if host.strip()]
+    # Parse comma-separated hosts
+    # Include both with and without port to handle all cases
+    base_hosts = [host.strip() for host in allowed_hosts_env.split(",") if host.strip()]
+    allowed_hosts = []
+    for host in base_hosts:
+        # Add the host without port
+        if ":" not in host:
+            allowed_hosts.append(host)
+        allowed_hosts.append(f"{host.split(':')[0]}:*")
     print(f"✅ Allowed hosts configured: {', '.join(allowed_hosts)}")
 else:
     # Development mode - allow localhost and common development hosts
-    allowed_hosts = ["localhost:*", "127.0.0.1:*", "0.0.0.0:*"]
+    allowed_hosts = ["localhost", "localhost:*", "127.0.0.1", "127.0.0.1:*", "0.0.0.0", "0.0.0.0:*"]
     print("⚠️  Running in development mode - allowing localhost only")
 
 # Create MCP server instance with stateless configuration for serverless/production
