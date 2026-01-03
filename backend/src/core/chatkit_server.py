@@ -406,9 +406,7 @@ user_id is always: "{user_id}"
                 temperature=0.7,  # Slightly higher for more natural, conversational responses
                 max_tokens=1024,
                 tool_choice="auto",  # Allow agent to decide when to use tools vs respond naturally
-                extra_args={
-                    "parallel_tool_calls": False,  # CRITICAL: Disable parallel tool calls to prevent duplicates
-                },
+                parallel_tool_calls=False,  # CRITICAL: Disable parallel tool calls to prevent duplicates
             ),
             mcp_servers=[mcp_server],
         )
