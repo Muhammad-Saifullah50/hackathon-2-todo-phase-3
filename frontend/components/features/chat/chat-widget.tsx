@@ -13,9 +13,8 @@ export function ChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
 
-  // Automatically sync task data when chat is open and chatbot makes changes
-  // Disable automatic refetch on focus/visibility since we handle it via onResponseEnd
-  useChatTaskSync({
+  // Get the revalidation function directly
+  const { revalidateTasks } = useChatTaskSync({
     refetchOnWindowFocus: false,
     refetchOnVisibilityChange: false,
   });
@@ -64,24 +63,22 @@ export function ChatWidget() {
       }
     },
     // Trigger instant revalidation when response ends (task operations complete)
-    onResponseEnd: () => {
-      if (typeof window !== "undefined" && (window as any).__revalidateTasks) {
-        console.log('🎯 [ChatWidget] Response ended - triggering INSTANT revalidation');
+    onResponseEnd: async () => {
+      console.log('🎯 [ChatWidget] Response ended - triggering DIRECT revalidation');
 
-        // Trigger immediately
-        (window as any).__revalidateTasks();
+      // Call revalidation function DIRECTLY (not via window global)
+      await revalidateTasks();
 
-        // Also trigger after small delays to catch any race conditions
-        setTimeout(() => {
-          console.log('🎯 [ChatWidget] Secondary revalidation trigger (500ms)');
-          (window as any).__revalidateTasks();
-        }, 500);
+      // Trigger again after delays to ensure data is committed
+      setTimeout(async () => {
+        console.log('🎯 [ChatWidget] Secondary revalidation (500ms)');
+        await revalidateTasks();
+      }, 500);
 
-        setTimeout(() => {
-          console.log('🎯 [ChatWidget] Final revalidation trigger (1000ms)');
-          (window as any).__revalidateTasks();
-        }, 1000);
-      }
+      setTimeout(async () => {
+        console.log('🎯 [ChatWidget] Final revalidation (1000ms)');
+        await revalidateTasks();
+      }, 1000);
     },
     theme: {
       colorScheme: "light",
@@ -108,7 +105,7 @@ export function ChatWidget() {
       prompts: [
         {
           label: "Create Task",
-          prompt: "Add a task to buy groceries tomorrow",
+          prompt: "Add a task to buy groceries",
           icon: "agent",
         },
         {

@@ -59,61 +59,60 @@ export function useChatTaskSync(options: UseChatTaskSyncOptions = {}) {
    */
   const revalidateTasks = useCallback(async () => {
     const now = Date.now();
-    // Reduced debounce: don't revalidate if we just did it (within 200ms)
-    if (now - lastRevalidationRef.current < 200) {
+    // Reduced debounce: don't revalidate if we just did it (within 100ms)
+    if (now - lastRevalidationRef.current < 100) {
       console.log('[ChatTaskSync] Skipping revalidation (debounced)');
       return;
     }
     lastRevalidationRef.current = now;
 
-    console.log('🔄 [ChatTaskSync] INSTANT REVALIDATION TRIGGERED');
+    console.log('🔄🔄🔄 [ChatTaskSync] ===== STARTING INSTANT REVALIDATION =====');
 
-    // 1. FORCE immediate refetch of ALL task-related queries (this updates UI instantly)
-    console.log('⚡ [ChatTaskSync] Force refetching ALL task queries...');
+    try {
+      // 1. IMMEDIATELY invalidate and refetch ALL task queries
+      console.log('⚡ [ChatTaskSync] Step 1: Invalidating ALL task queries...');
+      await queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          const isTaskQuery = typeof key === 'string' && (
+            key === 'tasks' ||
+            key === 'task' ||
+            key === 'analytics' ||
+            key === 'tags' ||
+            key === 'trash'
+          );
+          if (isTaskQuery) {
+            console.log(`  - Invalidating query: ${JSON.stringify(query.queryKey)}`);
+          }
+          return isTaskQuery;
+        },
+        refetchType: 'active', // Only refetch active queries
+      });
 
-    // Refetch all queries that start with 'tasks' prefix (catches all variations)
-    await queryClient.refetchQueries({
-      predicate: (query) => {
-        const key = query.queryKey[0];
-        return typeof key === 'string' && (
-          key === 'tasks' ||
-          key === 'task' ||
-          key === 'analytics' ||
-          key === 'tags' ||
-          key === 'trash'
-        );
-      }
-    });
+      // 2. FORCE refetch active queries immediately
+      console.log('⚡ [ChatTaskSync] Step 2: Force refetching active queries...');
+      await queryClient.refetchQueries({
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          return typeof key === 'string' && (
+            key === 'tasks' ||
+            key === 'task' ||
+            key === 'analytics' ||
+            key === 'tags' ||
+            key === 'trash'
+          );
+        },
+        type: 'active', // Only refetch currently active queries
+      });
 
-    // 2. Invalidate ALL caches to mark as stale (catches all task query variations)
-    console.log('🗑️ [ChatTaskSync] Invalidating all caches...');
-    queryClient.invalidateQueries({
-      predicate: (query) => {
-        const key = query.queryKey[0];
-        return typeof key === 'string' && (
-          key === 'tasks' ||
-          key === 'task' ||
-          key === 'analytics' ||
-          key === 'tags' ||
-          key === 'trash'
-        );
-      }
-    });
+      // 3. Trigger Next.js router refresh
+      console.log('🔃 [ChatTaskSync] Step 3: Refreshing Next.js router...');
+      router.refresh();
 
-    // 3. Trigger Next.js router refresh for server components
-    console.log('🔃 [ChatTaskSync] Refreshing Next.js router...');
-    router.refresh();
-
-    // 4. Trigger Next.js server-side revalidation via API (async, non-blocking)
-    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/revalidate/tasks`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'chatbot_task_change' }),
-    }).catch(error => {
-      console.error('[ChatTaskSync] Failed to trigger server revalidation:', error);
-    });
-
-    console.log('✅ [ChatTaskSync] Revalidation complete - UI should update NOW');
+      console.log('✅✅✅ [ChatTaskSync] ===== REVALIDATION COMPLETE - UI UPDATED =====');
+    } catch (error) {
+      console.error('❌ [ChatTaskSync] Revalidation failed:', error);
+    }
   }, [queryClient, router]);
 
   // Expose revalidateTasks globally for chatbot to call
