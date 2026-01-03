@@ -68,22 +68,37 @@ export function useChatTaskSync(options: UseChatTaskSyncOptions = {}) {
 
     console.log('🔄 [ChatTaskSync] INSTANT REVALIDATION TRIGGERED');
 
-    // 1. FORCE immediate refetch of tasks (this updates UI instantly)
+    // 1. FORCE immediate refetch of ALL task-related queries (this updates UI instantly)
     console.log('⚡ [ChatTaskSync] Force refetching ALL task queries...');
-    await Promise.all([
-      queryClient.refetchQueries({ queryKey: ['tasks'] }),
-      queryClient.refetchQueries({ queryKey: ['task'] }),
-      queryClient.refetchQueries({ queryKey: ['analytics'] }),
-      queryClient.refetchQueries({ queryKey: ['tags'] }),
-    ]);
 
-    // 2. Invalidate ALL caches to mark as stale
+    // Refetch all queries that start with 'tasks' prefix (catches all variations)
+    await queryClient.refetchQueries({
+      predicate: (query) => {
+        const key = query.queryKey[0];
+        return typeof key === 'string' && (
+          key === 'tasks' ||
+          key === 'task' ||
+          key === 'analytics' ||
+          key === 'tags' ||
+          key === 'trash'
+        );
+      }
+    });
+
+    // 2. Invalidate ALL caches to mark as stale (catches all task query variations)
     console.log('🗑️ [ChatTaskSync] Invalidating all caches...');
-    queryClient.invalidateQueries({ queryKey: ['tasks'] });
-    queryClient.invalidateQueries({ queryKey: ['task'] });
-    queryClient.invalidateQueries({ queryKey: ['analytics'] });
-    queryClient.invalidateQueries({ queryKey: ['tags'] });
-    queryClient.invalidateQueries({ queryKey: ['trash'] });
+    queryClient.invalidateQueries({
+      predicate: (query) => {
+        const key = query.queryKey[0];
+        return typeof key === 'string' && (
+          key === 'tasks' ||
+          key === 'task' ||
+          key === 'analytics' ||
+          key === 'tags' ||
+          key === 'trash'
+        );
+      }
+    });
 
     // 3. Trigger Next.js router refresh for server components
     console.log('🔃 [ChatTaskSync] Refreshing Next.js router...');
