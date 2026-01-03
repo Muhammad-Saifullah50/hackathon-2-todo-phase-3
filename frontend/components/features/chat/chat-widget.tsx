@@ -62,18 +62,17 @@ export function ChatWidget() {
         }
       }
     },
-    // Trigger instant revalidation when events occur
-    onItemAdded: () => {
-      // Trigger revalidation when any item is added (tool call, message, etc.)
+    // Trigger instant revalidation when response starts (tool call initiated)
+    onResponseStart: () => {
       if (typeof window !== "undefined" && (window as any).__revalidateTasks) {
-        console.log('[ChatWidget] Item added - triggering instant revalidation');
+        console.log('[ChatWidget] Response started - triggering instant revalidation');
         (window as any).__revalidateTasks();
       }
     },
-    onItemUpdated: () => {
-      // Trigger revalidation when any item is updated
+    // Trigger instant revalidation when response ends (task operations complete)
+    onResponseEnd: () => {
       if (typeof window !== "undefined" && (window as any).__revalidateTasks) {
-        console.log('[ChatWidget] Item updated - triggering instant revalidation');
+        console.log('[ChatWidget] Response ended - triggering instant revalidation');
         (window as any).__revalidateTasks();
       }
     },
