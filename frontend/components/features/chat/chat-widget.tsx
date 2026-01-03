@@ -62,18 +62,24 @@ export function ChatWidget() {
         }
       }
     },
-    // Trigger instant revalidation when response starts (tool call initiated)
-    onResponseStart: () => {
-      if (typeof window !== "undefined" && (window as any).__revalidateTasks) {
-        console.log('[ChatWidget] Response started - triggering instant revalidation');
-        (window as any).__revalidateTasks();
-      }
-    },
     // Trigger instant revalidation when response ends (task operations complete)
     onResponseEnd: () => {
       if (typeof window !== "undefined" && (window as any).__revalidateTasks) {
-        console.log('[ChatWidget] Response ended - triggering instant revalidation');
+        console.log('🎯 [ChatWidget] Response ended - triggering INSTANT revalidation');
+
+        // Trigger immediately
         (window as any).__revalidateTasks();
+
+        // Also trigger after small delays to catch any race conditions
+        setTimeout(() => {
+          console.log('🎯 [ChatWidget] Secondary revalidation trigger (500ms)');
+          (window as any).__revalidateTasks();
+        }, 500);
+
+        setTimeout(() => {
+          console.log('🎯 [ChatWidget] Final revalidation trigger (1000ms)');
+          (window as any).__revalidateTasks();
+        }, 1000);
       }
     },
     theme: {

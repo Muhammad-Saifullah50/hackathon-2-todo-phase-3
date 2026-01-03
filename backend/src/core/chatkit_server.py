@@ -632,7 +632,7 @@ Your user_id is always: "{user_id}"
                     has_revalidated = True
                     logger.info("⚡ Triggered fast revalidation after item added")
 
-                # DEDUPLICATION LOGIC: Only process each message ID once
+                # DEDUPLICATION LOGIC: Only process and yield each message once
                 if (
                     hasattr(event, "item")
                     and hasattr(event, "type")
@@ -654,13 +654,12 @@ Your user_id is always: "{user_id}"
 
                     if not content.strip():
                         logger.info("⏭️ Skipping empty message")
-                        continue
+                        continue  # Don't yield empty messages
 
-                    # Check if we've already sent this message ID OR content
-                    # This handles both duplicate IDs and duplicate content
+                    # Check if we've already sent this message ID
                     if event.item.id in sent_message_ids:
                         logger.warning(f"🚫 BLOCKED DUPLICATE MESSAGE ID: {event.item.id}")
-                        continue
+                        continue  # Don't yield duplicates
 
                     # Generate proper ID if it's fake or contains fake_id
                     if event.item.id == "__fake_id__" or "__fake_id__" in event.item.id or event.item.id.startswith("message_"):
@@ -679,7 +678,11 @@ Your user_id is always: "{user_id}"
                     except Exception as save_err:
                         logger.error(f"❌ Failed to save assistant message: {save_err}")
 
-                yield event
+                    # CRITICAL: Only yield the event AFTER passing all checks
+                    yield event
+                else:
+                    # For non-assistant-message events, yield normally
+                    yield event
 
             logger.info(
                 f"🏁 Streaming complete - Saved {len(saved_message_ids)} unique assistant messages"
