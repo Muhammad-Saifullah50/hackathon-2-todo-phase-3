@@ -30,9 +30,11 @@ export function ChatWidget() {
     return () => window.removeEventListener('chatkit:revalidate', handleRevalidate);
   }, [revalidateTasks]);
 
-  // Custom fetch function that adds authentication headers
+  // Custom fetch function that adds authentication headers AND triggers revalidation
   const authenticatedFetch: typeof fetch = async (input, init) => {
     try {
+      console.log('🌐 [ChatWidget] Making ChatKit request:', input);
+
       // Get JWT token from Better Auth
       const { data, error } = await authClient.token();
 
@@ -43,11 +45,34 @@ export function ChatWidget() {
       }
 
       // Make the fetch request with auth headers
-      return fetch(input, {
+      const response = await fetch(input, {
         ...init,
         headers,
         credentials: "include", // Include cookies
       });
+
+      // If this was a message request (POST), trigger revalidation after response
+      if (init?.method === 'POST' && typeof input === 'string' && input.includes('/chatkit')) {
+        console.log('✉️ [ChatWidget] Message sent to backend - triggering revalidation');
+
+        // Trigger revalidation after a short delay to allow backend to commit
+        setTimeout(() => {
+          console.log('🔄 [ChatWidget] POST-FETCH revalidation (500ms)');
+          revalidateTasks();
+        }, 500);
+
+        setTimeout(() => {
+          console.log('🔄 [ChatWidget] POST-FETCH revalidation (1500ms)');
+          revalidateTasks();
+        }, 1500);
+
+        setTimeout(() => {
+          console.log('🔄 [ChatWidget] POST-FETCH revalidation (3000ms)');
+          revalidateTasks();
+        }, 3000);
+      }
+
+      return response;
     } catch (error) {
       console.error("Failed to add auth to ChatKit request:", error);
       // Fallback to regular fetch if auth fails
