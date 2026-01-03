@@ -400,7 +400,7 @@ Your user_id is always: "{user_id}"
             ),
             model_settings=ModelSettings(
                 include_usage=True,
-                temperature=0.7,  # Slightly higher for more natural, conversational responses
+                temperature=0.4,  # Slightly higher for more natural, conversational responses
                 max_tokens=1024,
                 tool_choice="auto",  # Allow agent to decide when to use tools vs respond naturally
             ),
