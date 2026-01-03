@@ -133,46 +133,10 @@ async def trigger_frontend_revalidation(action: str = "update") -> None:
     Note:
         This is a best-effort operation. If it fails, we log the error but don't block the response.
     """
-    try:
-        # Verify we have a valid frontend URL
-        if not FRONTEND_URL or "todomore-server" in FRONTEND_URL:
-            logger.warning(
-                f"⚠️ Invalid FRONTEND_URL: {FRONTEND_URL}. Skipping revalidation. "
-                "Please set FRONTEND_URL environment variable to your frontend deployment URL."
-            )
-            return
-
-        async with httpx.AsyncClient(timeout=httpx.Timeout(5.0, connect=2.0)) as client:
-            revalidation_url = f"{FRONTEND_URL}/api/revalidate/tasks"
-            logger.info(f"📡 Triggering revalidation: {revalidation_url}")
-
-            response = await client.post(
-                revalidation_url,
-                json={"action": action},
-            )
-            if response.status_code == 200:
-                logger.info(f"✅ Frontend revalidation triggered successfully after {action}")
-            else:
-                logger.warning(
-                    f"⚠️ Frontend revalidation returned {response.status_code}. "
-                    f"This is non-critical. Response: {response.text[:200]}"
-                )
-    except httpx.TimeoutException:
-        logger.warning(
-            f"⚠️ Frontend revalidation timed out after 5s. "
-            "This is non-critical and won't affect task creation."
-        )
-    except httpx.RequestError as e:
-        logger.warning(
-            f"⚠️ Could not connect to frontend for revalidation: {e}. "
-            "This is non-critical. Tasks will refresh on next page load."
-        )
-    except Exception as e:
-        logger.warning(
-            f"⚠️ Frontend revalidation failed with unexpected error: {e}. "
-            "This is non-critical and won't affect task operations.",
-            exc_info=False  # Don't log full stack trace for non-critical errors
-        )
+    logger.info(f"🔔 Triggering frontend revalidation for action: {action}")
+    # Note: The actual revalidation happens via SSE stream events that the frontend listens to
+    # This function is kept for compatibility but the real revalidation trigger is the
+    # ThreadItemDoneEvent being sent to the frontend
 
 
 # Title generation agent - creates concise thread titles from user's first message
@@ -701,6 +665,9 @@ Your user_id is always: "{user_id}"
 
                     # CRITICAL: Only yield the final complete event
                     yield event
+
+                    # AFTER yielding the message, trigger revalidation
+                    logger.info("🔔 Assistant message sent - frontend should revalidate now")
                 else:
                     # For non-assistant-message events (tool calls, etc.), yield normally
                     yield event

@@ -19,6 +19,17 @@ export function ChatWidget() {
     refetchOnVisibilityChange: false,
   });
 
+  // Listen for custom revalidation event from backend
+  useEffect(() => {
+    const handleRevalidate = () => {
+      console.log('📢 [ChatWidget] Received revalidation event from backend');
+      revalidateTasks();
+    };
+
+    window.addEventListener('chatkit:revalidate', handleRevalidate);
+    return () => window.removeEventListener('chatkit:revalidate', handleRevalidate);
+  }, [revalidateTasks]);
+
   // Custom fetch function that adds authentication headers
   const authenticatedFetch: typeof fetch = async (input, init) => {
     try {
@@ -63,21 +74,18 @@ export function ChatWidget() {
       }
     },
     // Trigger instant revalidation when response ends (task operations complete)
-    onResponseEnd: async () => {
-      console.log('🎯 [ChatWidget] Response ended - triggering DIRECT revalidation');
+    onResponseEnd: () => {
+      console.log('⏹️⏹️⏹️ [ChatWidget] ===== RESPONSE ENDED - TRIGGERING REVALIDATION =====');
 
-      // Call revalidation function DIRECTLY (not via window global)
-      await revalidateTasks();
+      // Call immediately
+      revalidateTasks().then(() => {
+        console.log('✅ [ChatWidget] Immediate revalidation completed');
+      });
 
-      // Trigger again after delays to ensure data is committed
-      setTimeout(async () => {
-        console.log('🎯 [ChatWidget] Secondary revalidation (500ms)');
-        await revalidateTasks();
-      }, 500);
-
-      setTimeout(async () => {
-        console.log('🎯 [ChatWidget] Final revalidation (1000ms)');
-        await revalidateTasks();
+      // Also trigger after delay to catch async database commits
+      setTimeout(() => {
+        console.log('🔄 [ChatWidget] Delayed revalidation (1s)');
+        revalidateTasks();
       }, 1000);
     },
     theme: {
