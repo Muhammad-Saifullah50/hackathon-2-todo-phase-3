@@ -272,31 +272,22 @@ class NeonChatKitStore(Store[Dict[str, Any]]):
                     after = None
 
             # Fetch items with pagination, excluding workflow items
+            # ALWAYS use ASC order for chronological display
             if after and cursor_row:
-                if order == "desc":
-                    query = """
-                        SELECT id, thread_id, type, role, content, created_at, n_tokens
-                        FROM chat_thread_items
-                        WHERE thread_id = $1 AND created_at < $2 AND type != 'workflow'
-                        ORDER BY created_at DESC
-                        LIMIT $3
-                    """
-                    rows = await conn.fetch(query, thread_id, cursor_row["created_at"], limit + 1)
-                else:
-                    query = """
-                        SELECT id, thread_id, type, role, content, created_at, n_tokens
-                        FROM chat_thread_items
-                        WHERE thread_id = $1 AND created_at > $2 AND type != 'workflow'
-                        ORDER BY created_at ASC
-                        LIMIT $3
-                    """
-                    rows = await conn.fetch(query, thread_id, cursor_row["created_at"], limit + 1)
+                query = """
+                    SELECT id, thread_id, type, role, content, created_at, n_tokens
+                    FROM chat_thread_items
+                    WHERE thread_id = $1 AND created_at > $2 AND type != 'workflow'
+                    ORDER BY created_at ASC
+                    LIMIT $3
+                """
+                rows = await conn.fetch(query, thread_id, cursor_row["created_at"], limit + 1)
             else:
-                query = f"""
+                query = """
                     SELECT id, thread_id, type, role, content, created_at, n_tokens
                     FROM chat_thread_items
                     WHERE thread_id = $1 AND type != 'workflow'
-                    ORDER BY created_at {'DESC' if order == 'desc' else 'ASC'}
+                    ORDER BY created_at ASC
                     LIMIT $2
                 """
                 rows = await conn.fetch(query, thread_id, limit + 1)

@@ -62,6 +62,21 @@ export function ChatWidget() {
         }
       }
     },
+    // Trigger instant revalidation when events occur
+    onItemAdded: () => {
+      // Trigger revalidation when any item is added (tool call, message, etc.)
+      if (typeof window !== "undefined" && (window as any).__revalidateTasks) {
+        console.log('[ChatWidget] Item added - triggering instant revalidation');
+        (window as any).__revalidateTasks();
+      }
+    },
+    onItemUpdated: () => {
+      // Trigger revalidation when any item is updated
+      if (typeof window !== "undefined" && (window as any).__revalidateTasks) {
+        console.log('[ChatWidget] Item updated - triggering instant revalidation');
+        (window as any).__revalidateTasks();
+      }
+    },
     theme: {
       colorScheme: "light",
       color: {

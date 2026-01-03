@@ -411,14 +411,17 @@ After receiving the tool output, provide a single, friendly response:
 1. **Listing tasks**: Call list_tasks with {{"user_id": "{user_id}"}} or {{"user_id": "{user_id}", "status": "pending"}}
 
 2. **Creating tasks**: Call add_task with {{"title": "Task name", "user_id": "{user_id}"}}
-   - For due dates, convert relative dates to ISO format YYYY-MM-DD
+   - For due dates, you MUST convert relative dates to ISO format YYYY-MM-DD
    - TODAY is: {today_str}
    - TOMORROW is: {tomorrow_str}
-   - Examples:
-     * "tomorrow" → use "{tomorrow_str}"
-     * "today" → use "{today_str}"
-     * "next Monday" → calculate the actual date in YYYY-MM-DD format
-   - Pass the ISO date string in the due_date parameter
+   - CRITICAL CONVERSION EXAMPLES:
+     * User says "tomorrow" → you use "{tomorrow_str}"
+     * User says "today" → you use "{today_str}"
+     * User says "next Monday" → calculate and use exact date like "2026-01-10"
+     * User says "Friday" → if today is {today_str}, calculate which Friday (this week or next)
+     * User says "in 3 days" → add 3 days to {today_str}
+   - ALWAYS pass the ISO date string (YYYY-MM-DD format) in the due_date parameter
+   - DO NOT pass "tomorrow" or "today" as strings - ALWAYS convert to actual dates
 
 3. **Completing tasks**: FIRST call list_tasks to find the task, THEN call complete_task with {{"task_id": "actual_id", "user_id": "{user_id}"}}
 
@@ -636,12 +639,7 @@ Your user_id is always: "{user_id}"
                     and event.type == "thread.item.done"
                     and event.item.type == "assistant_message"
                 ):
-                    # Check if we've already sent this message ID
-                    if event.item.id in sent_message_ids:
-                        logger.warning(f"🚫 BLOCKED DUPLICATE MESSAGE ID: {event.item.id}")
-                        continue
-
-                    # Extract content for logging
+                    # Extract content for logging and deduplication
                     content = ""
                     if hasattr(event.item, "content") and event.item.content:
                         if isinstance(event.item.content, list):
@@ -658,15 +656,23 @@ Your user_id is always: "{user_id}"
                         logger.info("⏭️ Skipping empty message")
                         continue
 
+                    # Check if we've already sent this message ID OR content
+                    # This handles both duplicate IDs and duplicate content
+                    if event.item.id in sent_message_ids:
+                        logger.warning(f"🚫 BLOCKED DUPLICATE MESSAGE ID: {event.item.id}")
+                        continue
+
+                    # Generate proper ID if it's fake or contains fake_id
+                    if event.item.id == "__fake_id__" or "__fake_id__" in event.item.id or event.item.id.startswith("message_"):
+                        event.item.id = self.store.generate_item_id("message", thread, context)
+                        logger.info(f"✨ Generated new message ID: {event.item.id}")
+
                     # Record this message ID as sent
                     sent_message_ids.add(event.item.id)
                     logger.info(f"📤 Agent message ({event.item.id}): {content[:100]}...")
 
                     # Save to database if needed
                     try:
-                        if event.item.id == "__fake_id__":
-                            event.item.id = self.store.generate_item_id("message", thread, context)
-
                         if event.item.id not in saved_message_ids:
                             await self.store.add_thread_item(thread.id, event.item, context)
                             saved_message_ids.add(event.item.id)
