@@ -118,10 +118,49 @@ import asyncpg
 # Authentication imports
 from auth import extract_user_id_from_authorization
 
+# FastMCP Context import for accessing request context
+from mcp.server.fastmcp import Context
+
 # Database URL from environment
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL environment variable not set")
+
+
+async def get_user_auth_from_context(ctx: Context, pool: asyncpg.Pool) -> str:
+    """Extract and verify user ID from request context headers.
+
+    Args:
+        ctx: FastMCP context with access to request headers
+        pool: Database connection pool for JWT verification
+
+    Returns:
+        Verified user ID from JWT token
+
+    Raises:
+        ValueError: If authorization header is missing or invalid
+    """
+    # Access the request context to get headers
+    request_context = ctx.request_context
+
+    # The authorization token is passed in X-User-Authorization header
+    # from the backend (OpenAI Agents SDK → MCP Server)
+    authorization_header = None
+
+    if hasattr(request_context, 'headers'):
+        # For HTTP requests (streamable HTTP transport)
+        headers = request_context.headers
+        authorization_header = headers.get('x-user-authorization') or headers.get('X-User-Authorization')
+
+    if not authorization_header:
+        raise ValueError(
+            "Missing X-User-Authorization header. "
+            "This header must be set by the backend when calling MCP tools."
+        )
+
+    # Verify the JWT token and extract user_id
+    user_id = await extract_user_id_from_authorization(authorization_header, pool)
+    return user_id
 
 
 # Remove asyncpg scheme for asyncpg.connect
@@ -183,30 +222,30 @@ async def close_pool():
 @mcp.tool()
 async def add_task(
     title: str,
-    authorization: str,
     description: str | None = None,
     due_date: str | None = None,
     priority: str = "medium",
     tags: list[str] | None = None,
+    ctx: Context = None,
 ) -> dict[str, Any]:
     """Add a new task to the user's task list.
 
     Args:
         title: Task title (required)
-        authorization: Bearer token for authentication (required)
         description: Optional task description
         due_date: Optional due date (ISO format or parseable date string)
         priority: Task priority (low, medium, high)
         tags: Optional list of tag names
+        ctx: MCP context for authentication (automatically provided)
 
     Returns:
         Dictionary with success status, task data, and message
     """
     pool = await get_pool()
 
-    # Authenticate and get user_id
+    # Authenticate and get user_id from request context
     try:
-        user_id = await extract_user_id_from_authorization(authorization, pool)
+        user_id = await get_user_auth_from_context(ctx, pool)
     except ValueError as e:
         return {"success": False, "error": f"Authentication failed: {str(e)}"}
 
@@ -298,27 +337,27 @@ async def add_task(
 
 @mcp.tool()
 async def list_tasks(
-    authorization: str,
     status: str | None = None,
     priority: str | None = None,
     tags: list[str] | None = None,
+    ctx: Context = None,
 ) -> dict[str, Any]:
     """List tasks with optional filters.
 
     Args:
-        authorization: Bearer token for authentication (required)
         status: Filter by status (pending, completed)
         priority: Filter by priority (low, medium, high)
         tags: Filter by tag names (not yet implemented)
+        ctx: MCP context for authentication (automatically provided)
 
     Returns:
         Dictionary with success status, tasks list, and count
     """
     pool = await get_pool()
 
-    # Authenticate and get user_id
+    # Authenticate and get user_id from request context
     try:
-        user_id = await extract_user_id_from_authorization(authorization, pool)
+        user_id = await get_user_auth_from_context(ctx, pool)
     except ValueError as e:
         return {"success": False, "error": f"Authentication failed: {str(e)}"}
 
@@ -383,22 +422,22 @@ async def list_tasks(
 @mcp.tool()
 async def complete_task(
     task_id: str,
-    authorization: str,
+    ctx: Context = None,
 ) -> dict[str, Any]:
     """Mark a task as complete.
 
     Args:
         task_id: ID of the task to complete
-        authorization: Bearer token for authentication (required)
+        ctx: MCP context for authentication (automatically provided)
 
     Returns:
         Dictionary with success status, task data, and message
     """
     pool = await get_pool()
 
-    # Authenticate and get user_id
+    # Authenticate and get user_id from request context
     try:
-        user_id = await extract_user_id_from_authorization(authorization, pool)
+        user_id = await get_user_auth_from_context(ctx, pool)
     except ValueError as e:
         return {"success": False, "error": f"Authentication failed: {str(e)}"}
 
@@ -441,22 +480,22 @@ async def complete_task(
 @mcp.tool()
 async def delete_task(
     task_id: str,
-    authorization: str,
+    ctx: Context = None,
 ) -> dict[str, Any]:
     """Delete a task (soft delete).
 
     Args:
         task_id: ID of the task to delete
-        authorization: Bearer token for authentication (required)
+        ctx: MCP context for authentication (automatically provided)
 
     Returns:
         Dictionary with success status, task data, and message
     """
     pool = await get_pool()
 
-    # Authenticate and get user_id
+    # Authenticate and get user_id from request context
     try:
-        user_id = await extract_user_id_from_authorization(authorization, pool)
+        user_id = await get_user_auth_from_context(ctx, pool)
     except ValueError as e:
         return {"success": False, "error": f"Authentication failed: {str(e)}"}
 
@@ -490,30 +529,30 @@ async def delete_task(
 @mcp.tool()
 async def update_task(
     task_id: str,
-    authorization: str,
     title: str | None = None,
     description: str | None = None,
     priority: str | None = None,
     due_date: str | None = None,
+    ctx: Context = None,
 ) -> dict[str, Any]:
     """Update an existing task.
 
     Args:
         task_id: ID of the task to update
-        authorization: Bearer token for authentication (required)
         title: New title (optional)
         description: New description (optional)
         priority: New priority (optional)
         due_date: New due date (optional)
+        ctx: MCP context for authentication (automatically provided)
 
     Returns:
         Dictionary with success status, task data, and message
     """
     pool = await get_pool()
 
-    # Authenticate and get user_id
+    # Authenticate and get user_id from request context
     try:
-        user_id = await extract_user_id_from_authorization(authorization, pool)
+        user_id = await get_user_auth_from_context(ctx, pool)
     except ValueError as e:
         return {"success": False, "error": f"Authentication failed: {str(e)}"}
 

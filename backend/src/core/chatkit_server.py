@@ -290,11 +290,14 @@ class TodoMoreChatKitServer(ChatKitServer):
 
         return agent
 
-    async def _create_agent_with_mcp(self, user_id: str) -> tuple[Agent, Any]:
+    async def _create_agent_with_mcp(
+        self, user_id: str, authorization: str = ""
+    ) -> tuple[Agent, Any]:
         """Create and configure the agent with FastMCP server.
 
         Args:
             user_id: Authenticated user ID to pass to MCP tools
+            authorization: Bearer token for MCP tool authentication
 
         Returns:
             Tuple of (Agent instance, MCP server instance)
@@ -315,7 +318,8 @@ class TodoMoreChatKitServer(ChatKitServer):
                 params={
                     "url": settings.MCP_SERVER_URL,
                     "headers": {
-                        "Authorization": f"Bearer {settings.MCP_SERVER_TOKEN}",
+                        "Authorization": f"Bearer {settings.MCP_SERVER_TOKEN}",  # Server-to-server auth
+                        "X-User-Authorization": authorization,  # User's JWT token for tool authentication
                         "Content-Type": "application/json",
                         "Accept": "application/json",  # Required by MCP server
                     },
@@ -350,13 +354,14 @@ class TodoMoreChatKitServer(ChatKitServer):
         tomorrow_str = (now_utc + timedelta(days=1)).strftime("%Y-%m-%d")
 
         # Create task management agent with MCP server
+        # IMPORTANT: The authorization header will be automatically injected by the agent via extra_args
         agent = Agent(
             name="TodoBot",
             instructions=f"""You are TodoBot, a friendly and helpful task management assistant. You help users manage their tasks through natural, conversational dialogue.
 
 ## CRITICAL RULES:
 1. You MUST use MCP tools for ALL task operations - NEVER fabricate task IDs or responses
-2. ALWAYS pass user_id="{user_id}" to EVERY tool call
+2. The authorization parameter is automatically provided - DO NOT include it in your tool calls
 3. Use COMPLETE task IDs from tool results - NEVER guess or use partial IDs
 4. Wait for tool responses before providing your final confirmation to the user.
 5. DO NOT provide a "pre-confirmation" (e.g., "I'll do that now...") before calling the tool. Simply call the tool, then report the result naturally.
@@ -365,12 +370,12 @@ class TodoMoreChatKitServer(ChatKitServer):
 When providing tool arguments, output ONLY valid JSON.
 
 ### EXAMPLES:
-✅ CORRECT: {{"user_id": "{user_id}", "status": "pending"}}
-✅ CORRECT: {{"title": "Buy milk", "user_id": "{user_id}"}}
+✅ CORRECT: {{"status": "pending"}}
+✅ CORRECT: {{"title": "Buy milk"}}
 
-❌ WRONG: ": {{"user_id": "{user_id}"}}"  ← Leading colon!
-❌ WRONG: {{user_id: "{user_id}"}}  ← Missing quotes around key!
-❌ WRONG: {{"user_id": {user_id}}}  ← Missing quotes around value!
+❌ WRONG: ": {{"status": "pending"}}"  ← Leading colon!
+❌ WRONG: {{status: "pending"}}  ← Missing quotes around key!
+❌ WRONG: {{"title": Buy milk}}  ← Missing quotes around value!
 
 ## CONVERSATIONAL RESPONSE STYLE:
 
@@ -404,9 +409,9 @@ After receiving the tool output, provide a single, friendly response:
 
 ## TOOL USAGE PATTERNS:
 
-1. **Listing tasks**: Call list_tasks with {{"user_id": "{user_id}"}} or {{"status": "pending", "user_id": "{user_id}"}}
+1. **Listing tasks**: Call list_tasks with {{}} (empty) or {{"status": "pending"}}
 
-2. **Creating tasks**: Call add_task with {{"title": "Task name", "user_id": "{user_id}"}}
+2. **Creating tasks**: Call add_task with {{"title": "Task name"}}
    - For due dates, convert relative dates to ISO format YYYY-MM-DD
    - TODAY is: {today_str}
    - TOMORROW is: {tomorrow_str}
@@ -421,7 +426,7 @@ After receiving the tool output, provide a single, friendly response:
 4. **Deleting tasks**: FIRST call list_tasks to find the task, THEN call delete_task with the actual task_id
 
 Remember: Always use clean JSON for arguments, and respond naturally like a helpful friend!
-user_id is always: "{user_id}"
+The authorization token is automatically provided to all tool calls - you don't need to include it.
 """,
             model=LitellmModel(
                 model="openrouter/qwen/qwen3-coder",
@@ -530,8 +535,9 @@ user_id is always: "{user_id}"
             # Convert ONLY the new input item to agent format
             new_items = await simple_to_agent_input(input) if input else []
 
-            # Extract user_id from context
+            # Extract user_id and authorization from context
             user_id = context.get("user_id", "anonymous")
+            authorization = context.get("authorization", "")
             logger.info(f"Creating agent for user_id: {user_id}")
 
             # Try to create agent with MCP server, with fallback to degraded mode
@@ -548,7 +554,7 @@ user_id is always: "{user_id}"
             else:
                 # Health check passed, try to connect
                 try:
-                    agent, mcp_server = await self._create_agent_with_mcp(user_id)
+                    agent, mcp_server = await self._create_agent_with_mcp(user_id, authorization)
                     logger.info(f"✅ Agent created successfully with MCP tools: {agent.name}")
                 except Exception as mcp_error:
                     logger.error(f"❌ Failed to create agent with MCP: {mcp_error}")

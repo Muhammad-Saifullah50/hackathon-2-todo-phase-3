@@ -88,8 +88,14 @@ async def chatkit_endpoint(
                 status_code=499,  # Client Closed Request
             )
 
-        # Build context with user_id for authenticated users
-        context = {"user_id": user_id}
+        # Extract authorization header for MCP tool calls
+        authorization_header = request.headers.get("authorization", "")
+
+        # Build context with user_id and authorization for authenticated users
+        context = {
+            "user_id": user_id,
+            "authorization": authorization_header,  # Pass JWT token for MCP tools
+        }
 
         # Get ChatKit server instance
         server = get_chatkit_server()
