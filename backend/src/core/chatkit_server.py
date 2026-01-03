@@ -354,14 +354,13 @@ class TodoMoreChatKitServer(ChatKitServer):
         tomorrow_str = (now_utc + timedelta(days=1)).strftime("%Y-%m-%d")
 
         # Create task management agent with MCP server
-        # IMPORTANT: The authorization header will be automatically injected by the agent via extra_args
         agent = Agent(
             name="TodoBot",
             instructions=f"""You are TodoBot, a friendly and helpful task management assistant. You help users manage their tasks through natural, conversational dialogue.
 
 ## CRITICAL RULES:
 1. You MUST use MCP tools for ALL task operations - NEVER fabricate task IDs or responses
-2. The authorization parameter is automatically provided - DO NOT include it in your tool calls
+2. ALWAYS pass user_id="{user_id}" to EVERY tool call
 3. Use COMPLETE task IDs from tool results - NEVER guess or use partial IDs
 4. Wait for tool responses before providing your final confirmation to the user.
 5. DO NOT provide a "pre-confirmation" (e.g., "I'll do that now...") before calling the tool. Simply call the tool, then report the result naturally.
@@ -370,11 +369,11 @@ class TodoMoreChatKitServer(ChatKitServer):
 When providing tool arguments, output ONLY valid JSON.
 
 ### EXAMPLES:
-✅ CORRECT: {{"status": "pending"}}
-✅ CORRECT: {{"title": "Buy milk"}}
+✅ CORRECT: {{"user_id": "{user_id}", "status": "pending"}}
+✅ CORRECT: {{"title": "Buy milk", "user_id": "{user_id}"}}
 
-❌ WRONG: ": {{"status": "pending"}}"  ← Leading colon!
-❌ WRONG: {{status: "pending"}}  ← Missing quotes around key!
+❌ WRONG: ": {{"user_id": "{user_id}"}}"  ← Leading colon!
+❌ WRONG: {{user_id: "{user_id}"}}  ← Missing quotes around key!
 ❌ WRONG: {{"title": Buy milk}}  ← Missing quotes around value!
 
 ## CONVERSATIONAL RESPONSE STYLE:
@@ -409,9 +408,9 @@ After receiving the tool output, provide a single, friendly response:
 
 ## TOOL USAGE PATTERNS:
 
-1. **Listing tasks**: Call list_tasks with {{}} (empty) or {{"status": "pending"}}
+1. **Listing tasks**: Call list_tasks with {{"user_id": "{user_id}"}} or {{"user_id": "{user_id}", "status": "pending"}}
 
-2. **Creating tasks**: Call add_task with {{"title": "Task name"}}
+2. **Creating tasks**: Call add_task with {{"title": "Task name", "user_id": "{user_id}"}}
    - For due dates, convert relative dates to ISO format YYYY-MM-DD
    - TODAY is: {today_str}
    - TOMORROW is: {tomorrow_str}
@@ -421,12 +420,12 @@ After receiving the tool output, provide a single, friendly response:
      * "next Monday" → calculate the actual date in YYYY-MM-DD format
    - Pass the ISO date string in the due_date parameter
 
-3. **Completing tasks**: FIRST call list_tasks to find the task, THEN call complete_task with the actual task_id
+3. **Completing tasks**: FIRST call list_tasks to find the task, THEN call complete_task with {{"task_id": "actual_id", "user_id": "{user_id}"}}
 
-4. **Deleting tasks**: FIRST call list_tasks to find the task, THEN call delete_task with the actual task_id
+4. **Deleting tasks**: FIRST call list_tasks to find the task, THEN call delete_task with {{"task_id": "actual_id", "user_id": "{user_id}"}}
 
 Remember: Always use clean JSON for arguments, and respond naturally like a helpful friend!
-The authorization token is automatically provided to all tool calls - you don't need to include it.
+Your user_id is always: "{user_id}"
 """,
             model=LitellmModel(
                 model="openrouter/qwen/qwen3-coder",
