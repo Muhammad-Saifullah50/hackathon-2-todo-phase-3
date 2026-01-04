@@ -1,0 +1,119 @@
+# 1. Version control
+.git/
+.gitignore
+.svn/
+.hg/
+
+# 2. Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.coverage
+*.egg-info/
+*.eggs/
+*.whl
+
+# 3. Node.js/TypeScript artifacts
+node_modules/
+npm-debug.log
+yarn-debug.log
+.next/
+
+# 4. Build outputs and temp files
+dist/
+build/
+out/
+tmp/
+temp/
+*.tmp
+
+# 5. IDE/editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 6. Test and coverage files
+test/
+tests/
+*.test.js
+*.test.ts
+*.test.tsx
+*.spec.js
+*.spec.ts
+*.spec.tsx
+
+# 7. Debug and log files
+debug/
+*.log
+
+# 8. Environment and secrets
+.env
+.env.*
+*.env
+*.pem
+*.key
+*.crt
+config.local.*
+*.local.yml
+
+# 9. Project-specific patterns
+# Documentation
+/docs/
+*.md
+README*
+
+# Docker files (do not ignore Dockerfile in root, but ignore others)
+Dockerfile*
+docker-compose*
+
+# Local development
+.local/
+local/
+
+# Miscellaneous
+*.bak
+
+# Exclude wheels directory except in backend if needed for build
+wheels/
+
+# Exclude history and specs (documentation and prompts)
+history/
+specs/
+
+# Exclude AI/LLM prompt and config directories
+.claude/
+.gemini/
+.specify/
+
+# Exclude public/illustrations (if not needed for build)
+public/illustrations/
+
+# Exclude empty directories (Docker ignores them by default, but for clarity)
+**/.empty
+
+# Exclude Vercel and deployment configs
+vercel.json
+VERCEL_DEPLOYMENT.md
+
+# Exclude Python virtual environments
+.venv/
+venv/
+
+# Exclude Python cache
+__pycache__/
+
+# Exclude compiled classes (Java, not present but for completeness)
+*.class
+
+# Exclude Go cache (not present but for completeness)
+.go-cache/
+
+# Exclude backup files
+*~
+
+# Exclude any other temp files
+*.temp
+
+# End of .dockerignore

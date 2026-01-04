@@ -1,8 +1,9 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  // Remove 'standalone' for Vercel deployments
-  // Vercel handles its own optimized output format
+  // Enable standalone output for Docker deployments
+  // Comment out for Vercel deployments (Vercel handles its own optimization)
+  output: 'standalone',
   turbopack: {
     root: __dirname,
   },

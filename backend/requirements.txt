@@ -17,3 +17,5 @@ fastmcp>=2.0.0
 dateparser>=1.2.0
 mcp
 openai-chatkit>=1.0.0
+slowapi>=0.1.9
+bleach>=6.0.0
