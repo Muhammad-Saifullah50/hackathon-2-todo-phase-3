@@ -1,0 +1,20 @@
+1. Deploy local dev stack:
+   ```bash
+   helm upgrade --install todomore-dev charts/todomore-dev \
+     --namespace todomore-dev --create-namespace
+   ```
+
+2. After install, add the host entry:
+   ```
+   127.0.0.1 todomore.local
+   ```
+
+3. Access the apps via ingress:
+   - Frontend: http://todomore.local/
+   - Backend API: http://todomore.local/api
+   - MCP: http://todomore.local/mcp
+
+4. Delete release:
+   ```bash
+   helm uninstall todomore-dev -n todomore-dev
+   ```

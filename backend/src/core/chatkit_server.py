@@ -153,8 +153,8 @@ title_agent = Agent(
 
     Return ONLY the title text, nothing else.""",
     model=LitellmModel(
-        model="openrouter/qwen/qwen3-coder",
-        api_key=settings.OPENROUTER_API_KEY,
+        model="gemini/gemini-2.5-flash-lite",
+        api_key=settings.GEMINI_API_KEY,
     ),
     model_settings=ModelSettings(
         temperature=0.7,
@@ -395,8 +395,8 @@ Remember: Always use clean JSON for arguments, and respond naturally like a help
 Your user_id is always: "{user_id}"
 """,
             model=LitellmModel(
-                model="openrouter/qwen/qwen3-coder",
-                api_key=settings.OPENROUTER_API_KEY,
+                model="gemini/gemini-2.5-flash-lite",
+                api_key=settings.GEMINI_API_KEY,
             ),
             model_settings=ModelSettings(
                 include_usage=True,
