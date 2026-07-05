@@ -18,10 +18,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const fetchSession = async () => {
     try {
-      const { data } = await authClient.getSession();
+      const { data, error } = await authClient.getSession();
+      if (error) {
+        throw error;
+      }
       setSession(data);
     } catch (error) {
-      console.error("Error fetching session:", error);
+      console.error("Error fetching session:", error instanceof Error ? error.message : error);
       setSession(null);
     } finally {
       setIsLoading(false);

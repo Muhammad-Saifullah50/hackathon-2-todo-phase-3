@@ -2,9 +2,15 @@ import { betterAuth } from "better-auth";
 import { jwt } from "better-auth/plugins";
 import { Pool } from "pg";
 
+const databaseUrl = (process.env.DATABASE_URL || "").replace(
+    /^postgresql:\/\//,
+    "postgres://"
+);
+
 export const auth = betterAuth({
+    baseURL: process.env.BETTER_AUTH_URL || "http://localhost:3000",
     database: new Pool({
-        connectionString: process.env.DATABASE_URL,
+        connectionString: databaseUrl,
     }),
     emailAndPassword: {
         enabled: true,
