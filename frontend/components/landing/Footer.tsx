@@ -7,7 +7,7 @@ import Link from "next/link";
  * Footer component with navigation links, social icons, and copyright
  */
 export function Footer() {
-  const currentYear = new Date().getFullYear();
+  const currentYear = 2026;
 
   const navigation = {
     product: [

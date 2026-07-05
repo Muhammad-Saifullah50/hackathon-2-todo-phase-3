@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { StatsCards } from "@/components/dashboard/StatsCards";
-import { CompletionTrendChart } from "@/components/dashboard/CompletionTrendChart";
-import { PriorityBreakdownChart } from "@/components/dashboard/PriorityBreakdownChart";
 import { CreateTaskDialog } from "@/components/tasks/CreateTaskDialog";
+import { DashboardCharts } from "@/components/dashboard/DashboardCharts";
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -24,11 +23,7 @@ export default function DashboardPage() {
 
       <div className="flex-1 overflow-y-auto space-y-6 pb-6 pr-1">
         <StatsCards />
-
-        <div className="grid gap-6 md:grid-cols-2">
-          <CompletionTrendChart />
-          <PriorityBreakdownChart />
-        </div>
+        <DashboardCharts />
       </div>
     </div>
   );

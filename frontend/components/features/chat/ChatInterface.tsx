@@ -47,16 +47,10 @@ export function ChatInterface({ conversationId, className }: ChatInterfaceProps)
   const { toast } = useToast();
   const [isReady, setIsReady] = useState(false);
 
-  // Automatically sync task data when chatbot makes changes
-  // Uses on-demand revalidation via router.refresh()
-  // No polling - Server Actions handle cache invalidation
-  useChatTaskSync({
-    refetchOnWindowFocus: true,
-    refetchOnVisibilityChange: true,
-  });
+  useChatTaskSync();
 
   // Custom fetch function that adds authentication headers
-  const authenticatedFetch: typeof fetch = async (input, init) => {
+  const authenticatedFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     try {
       // Get JWT token from auth client
       const { data, error: authError } = await authClient.token();
@@ -87,7 +81,7 @@ export function ChatInterface({ conversationId, className }: ChatInterfaceProps)
     api: {
       url: `${BACKEND_URL}/chatkit`,
       domainKey: process.env.NEXT_PUBLIC_OPENAI_DOMAIN_KEY || "todomore", // Required: verify registered domain
-      fetch: authenticatedFetch,
+      fetch: authenticatedFetch as typeof fetch,
     },
 
     onError: ({ error }) => {

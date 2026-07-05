@@ -10,6 +10,11 @@ import { scrollFadeIn } from "@/lib/animations";
  * Final call-to-action section with gradient background
  * Encourages users to sign up and start using the app
  */
+function seededRandom(i: number): number {
+  const x = Math.sin(i * 9301 + 49297) * 233280;
+  return x - Math.floor(x);
+}
+
 export function CTA() {
   return (
     <section className="py-20 px-4 relative overflow-hidden">
@@ -26,17 +31,17 @@ export function CTA() {
             animate={{
               opacity: [0, 1, 0],
               scale: [0, 1, 0],
-              x: [0, Math.random() * 100 - 50],
-              y: [0, Math.random() * 100 - 50],
+              x: [0, seededRandom(i) * 100 - 50],
+              y: [0, seededRandom(i + 20) * 100 - 50],
             }}
             transition={{
-              duration: 3 + Math.random() * 2,
+              duration: 3 + seededRandom(i + 40) * 2,
               repeat: Infinity,
-              delay: Math.random() * 2,
+              delay: seededRandom(i + 60) * 2,
             }}
             style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
+              left: `${seededRandom(i + 80) * 100}%`,
+              top: `${seededRandom(i + 100) * 100}%`,
             }}
           >
             <Sparkles className="w-4 h-4" />

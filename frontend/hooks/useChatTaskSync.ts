@@ -3,168 +3,52 @@
 /**
  * Hook to sync task data when chatbot makes changes.
  *
- * This hook handles cache revalidation for task data:
- * 1. Uses router.refresh() to trigger server component re-renders
- * 2. Invalidates React Query cache to refresh client-side data
- * 3. Optionally refetches on window focus (for when user returns to tab)
- *
- * Note: Polling has been removed in favor of on-demand revalidation.
- * Server Actions automatically revalidate cache after mutations.
+ * Invalidates React Query caches on-demand rather than polling or
+ * triple-cascading.  TanStack Query's built-in refetchOnWindowFocus
+ * handles tab-return revalidation; we do not duplicate it here.
  */
 
 import { useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 
-export interface UseChatTaskSyncOptions {
-  /**
-   * Enable refetch on window focus (when user returns to tab)
-   * @default true
-   */
-  refetchOnWindowFocus?: boolean;
-
-  /**
-   * Enable refetch on tab visibility change
-   * @default true
-   */
-  refetchOnVisibilityChange?: boolean;
-}
+const taskQueryKeys = new Set(['tasks', 'task', 'analytics', 'tags', 'trash']);
 
 /**
  * Sync task data after chatbot interactions.
- * Invalidates both Next.js server cache and React Query client cache.
- *
- * @example
- * ```tsx
- * // In your chat page/component
- * function ChatPage() {
- *   useChatTaskSync();
- *   return <ChatInterface />;
- * }
- * ```
+ * Invalidates relevant React Query caches and triggers a router refresh.
  */
-export function useChatTaskSync(options: UseChatTaskSyncOptions = {}) {
+export function useChatTaskSync() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const lastRevalidationRef = useRef<number>(0);
 
-  const {
-    refetchOnWindowFocus = true,
-    refetchOnVisibilityChange = true,
-  } = options;
-
-  /**
-   * Function to trigger revalidation of all task data.
-   * This invalidates both Next.js server cache and React Query client cache.
-   */
   const revalidateTasks = useCallback(async () => {
     const now = Date.now();
-    // Reduced debounce: don't revalidate if we just did it (within 100ms)
-    if (now - lastRevalidationRef.current < 100) {
-      console.log('[ChatTaskSync] Skipping revalidation (debounced)');
-      return;
-    }
+    if (now - lastRevalidationRef.current < 1000) return;
     lastRevalidationRef.current = now;
 
-    console.log('🔄🔄🔄 [ChatTaskSync] ===== STARTING INSTANT REVALIDATION =====');
-
-    try {
-      // 1. IMMEDIATELY invalidate and refetch ALL task queries
-      console.log('⚡ [ChatTaskSync] Step 1: Invalidating ALL task queries...');
-      await queryClient.invalidateQueries({
-        predicate: (query) => {
-          const key = query.queryKey[0];
-          const isTaskQuery = typeof key === 'string' && (
-            key === 'tasks' ||
-            key === 'task' ||
-            key === 'analytics' ||
-            key === 'tags' ||
-            key === 'trash'
-          );
-          if (isTaskQuery) {
-            console.log(`  - Invalidating query: ${JSON.stringify(query.queryKey)}`);
-          }
-          return isTaskQuery;
-        },
-        refetchType: 'active', // Only refetch active queries
-      });
-
-      // 2. FORCE refetch active queries immediately
-      console.log('⚡ [ChatTaskSync] Step 2: Force refetching active queries...');
-      await queryClient.refetchQueries({
-        predicate: (query) => {
-          const key = query.queryKey[0];
-          return typeof key === 'string' && (
-            key === 'tasks' ||
-            key === 'task' ||
-            key === 'analytics' ||
-            key === 'tags' ||
-            key === 'trash'
-          );
-        },
-        type: 'active', // Only refetch currently active queries
-      });
-
-      // 3. Trigger Next.js router refresh
-      console.log('🔃 [ChatTaskSync] Step 3: Refreshing Next.js router...');
-      router.refresh();
-
-      console.log('✅✅✅ [ChatTaskSync] ===== REVALIDATION COMPLETE - UI UPDATED =====');
-    } catch (error) {
-      console.error('❌ [ChatTaskSync] Revalidation failed:', error);
-    }
+    await queryClient.invalidateQueries({
+      predicate: (query) => taskQueryKeys.has(query.queryKey[0] as string),
+      refetchType: 'active',
+    });
+    router.refresh();
   }, [queryClient, router]);
 
-  // Expose revalidateTasks globally for chatbot to call
   useEffect(() => {
     if (typeof window !== 'undefined') {
       (window as any).__revalidateTasks = revalidateTasks;
-      console.log('[ChatTaskSync] Exposed __revalidateTasks globally');
     }
   }, [revalidateTasks]);
-
-  // Set up window focus listener
-  useEffect(() => {
-    if (!refetchOnWindowFocus) return;
-
-    const handleFocus = () => {
-      console.log('[ChatTaskSync] Window gained focus, refetching...');
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      queryClient.refetchQueries({ queryKey: ['tasks'] });
-      router.refresh();
-    };
-
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, [refetchOnWindowFocus, queryClient, router]);
-
-  // Set up visibility change listener
-  useEffect(() => {
-    if (!refetchOnVisibilityChange) return;
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        console.log('[ChatTaskSync] Tab became visible, refetching...');
-        queryClient.invalidateQueries({ queryKey: ['tasks'] });
-        queryClient.refetchQueries({ queryKey: ['tasks'] });
-        router.refresh();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [refetchOnVisibilityChange, queryClient, router]);
 
   return { revalidateTasks };
 }
 
 /**
  * Helper function to call from chatbot callbacks after task modifications.
- * Triggers immediate revalidation of all task data.
  */
 export function triggerTaskRevalidation() {
   if (typeof window !== 'undefined' && (window as any).__revalidateTasks) {
-    console.log('[ChatTaskSync] triggerTaskRevalidation called');
     (window as any).__revalidateTasks();
   }
 }

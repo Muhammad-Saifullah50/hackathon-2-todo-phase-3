@@ -71,10 +71,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        {/* ChatKit web component - load once globally */}
+        {/* ChatKit web component - load once globally, lazy to avoid blocking render */}
         <Script
           src="https://cdn.platform.openai.com/deployments/chatkit/chatkit.js"
-          strategy="beforeInteractive"
+          strategy="lazyOnload"
         />
         <Providers>
           <SessionProvider>

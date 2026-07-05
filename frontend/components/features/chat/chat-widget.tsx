@@ -13,25 +13,10 @@ export function ChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
 
-  // Get the revalidation function directly
-  const { revalidateTasks } = useChatTaskSync({
-    refetchOnWindowFocus: false,
-    refetchOnVisibilityChange: false,
-  });
+  const { revalidateTasks } = useChatTaskSync();
 
-  // Listen for custom revalidation event from backend
-  useEffect(() => {
-    const handleRevalidate = () => {
-      console.log('📢 [ChatWidget] Received revalidation event from backend');
-      revalidateTasks();
-    };
-
-    window.addEventListener('chatkit:revalidate', handleRevalidate);
-    return () => window.removeEventListener('chatkit:revalidate', handleRevalidate);
-  }, [revalidateTasks]);
-
-  // Custom fetch function that adds authentication headers AND triggers revalidation
-  const authenticatedFetch: typeof fetch = async (input, init) => {
+  // Custom fetch function that adds authentication headers
+  const authenticatedFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     try {
       console.log('🌐 [ChatWidget] Making ChatKit request:', input);
 
@@ -51,27 +36,6 @@ export function ChatWidget() {
         credentials: "include", // Include cookies
       });
 
-      // If this was a message request (POST), trigger revalidation after response
-      if (init?.method === 'POST' && typeof input === 'string' && input.includes('/chatkit')) {
-        console.log('✉️ [ChatWidget] Message sent to backend - triggering revalidation');
-
-        // Trigger revalidation after a short delay to allow backend to commit
-        setTimeout(() => {
-          console.log('🔄 [ChatWidget] POST-FETCH revalidation (500ms)');
-          revalidateTasks();
-        }, 500);
-
-        setTimeout(() => {
-          console.log('🔄 [ChatWidget] POST-FETCH revalidation (1500ms)');
-          revalidateTasks();
-        }, 1500);
-
-        setTimeout(() => {
-          console.log('🔄 [ChatWidget] POST-FETCH revalidation (3000ms)');
-          revalidateTasks();
-        }, 3000);
-      }
-
       return response;
     } catch (error) {
       console.error("Failed to add auth to ChatKit request:", error);
@@ -86,7 +50,7 @@ export function ChatWidget() {
       api: {
         url: `${BACKEND_URL}/chatkit`,
         domainKey: DOMAIN_KEY,
-        fetch: authenticatedFetch, // Use custom fetch with auth
+        fetch: authenticatedFetch as typeof fetch, // Use custom fetch with auth
       },
     // Save thread ID when it changes
     onThreadChange: ({ threadId }) => {
@@ -98,20 +62,8 @@ export function ChatWidget() {
         }
       }
     },
-    // Trigger instant revalidation when response ends (task operations complete)
     onResponseEnd: () => {
-      console.log('⏹️⏹️⏹️ [ChatWidget] ===== RESPONSE ENDED - TRIGGERING REVALIDATION =====');
-
-      // Call immediately
-      revalidateTasks().then(() => {
-        console.log('✅ [ChatWidget] Immediate revalidation completed');
-      });
-
-      // Also trigger after delay to catch async database commits
-      setTimeout(() => {
-        console.log('🔄 [ChatWidget] Delayed revalidation (1s)');
-        revalidateTasks();
-      }, 1000);
+      revalidateTasks();
     },
     theme: {
       colorScheme: "light",

@@ -16,7 +16,10 @@ from chatkit.types import (
     ClientToolCallItem,
     ErrorEvent,
     ThreadMetadata,
+    ThoughtTask,
     UserMessageItem,
+    UserMessageTextContent,
+    UserMessageTagContent,
 )
 
 from src.core.chatkit_store import NeonChatKitStore
@@ -106,17 +109,13 @@ def _sanitize_json_block(block: str) -> str:
         value = match.group(2)
         after = match.group(3)
         # Don't quote if it looks like a number or boolean
-        if value.lower() in ("true", "false", "null") or re.match(
-            r"^-?\d+(\.\d+)?$", value
-        ):
+        if value.lower() in ("true", "false", "null") or re.match(r"^-?\d+(\.\d+)?$", value):
             return match.group(0)
         return f'{before}"{value}"{after}'
 
     # Only apply if the value isn't already quoted
     # Match colon followed by word character not preceded by quote
-    block = re.sub(
-        r"(:\s*)([a-zA-Z_][a-zA-Z0-9_]*)(\s*[,}])", fix_unquoted_value, block
-    )
+    block = re.sub(r"(:\s*)([a-zA-Z_][a-zA-Z0-9_]*)(\s*[,}])", fix_unquoted_value, block)
 
     return block
 
@@ -153,8 +152,8 @@ title_agent = Agent(
 
     Return ONLY the title text, nothing else.""",
     model=LitellmModel(
-        model="gemini/gemini-2.5-flash-lite",
-        api_key=settings.GEMINI_API_KEY,
+        model="openrouter/google/gemma-4-31b-it:free",
+        api_key=settings.OPENROUTER_API_KEY,
     ),
     model_settings=ModelSettings(
         temperature=0.7,
@@ -243,8 +242,8 @@ class TodoMoreChatKitServer(ChatKitServer):
             user_id: {user_id}
             """,
             model=LitellmModel(
-                model="gemini/gemini-2.5-flash-lite",
-                api_key=settings.GEMINI_API_KEY,
+                model="openrouter/nvidia/nemotron-3-super-120b-a12b:free",
+                api_key=settings.OPENROUTER_API_KEY,
             ),
             model_settings=ModelSettings(
                 temperature=0.7,
@@ -395,12 +394,12 @@ Remember: Always use clean JSON for arguments, and respond naturally like a help
 Your user_id is always: "{user_id}"
 """,
             model=LitellmModel(
-                model="gemini/gemini-2.5-flash-lite",
-                api_key=settings.GEMINI_API_KEY,
+                model="openrouter/nvidia/nemotron-3-super-120b-a12b:free",
+                api_key=settings.OPENROUTER_API_KEY,
             ),
             model_settings=ModelSettings(
                 include_usage=True,
-                temperature=0.4,  # Slightly higher for more natural, conversational responses
+                temperature=0.5,  # Slightly higher for more natural, conversational responses
                 max_tokens=1024,
                 tool_choice="auto",  # Allow agent to decide when to use tools vs respond naturally
             ),
@@ -409,6 +408,41 @@ Your user_id is always: "{user_id}"
 
         logger.info("Agent created with MCP server: %s", settings.MCP_SERVER_URL)
         return agent, mcp_server
+
+    def _looks_like_instructions(self, output: str, user_text: str) -> bool:
+        """Check if the generated title is LLM reasoning rather than an actual title."""
+        instruction_phrases = [
+            "you generate",
+            "create a short title",
+            "return only",
+            "3-6 words",
+            "based on the user",
+            "need to output",
+            "your task is",
+            "generate a concise",
+        ]
+        output_lower = output.lower()
+        for phrase in instruction_phrases:
+            if phrase in output_lower:
+                return True
+        # Check if output contains the user's message (model echoing it back)
+        user_words = set(user_text.lower().split())
+        if len(user_words) > 2:
+            matches = sum(1 for w in user_words if w in output_lower and len(w) > 2)
+            if matches >= 3:
+                return True
+        return False
+
+    def _extract_user_title(self, input_item: UserMessageItem) -> str:
+        """Extract a short title from the user's message text."""
+        text_parts = []
+        for part in input_item.content:
+            if isinstance(part, UserMessageTextContent):
+                text_parts.append(part.text)
+            elif isinstance(part, UserMessageTagContent):
+                text_parts.append(part.text)
+        words = " ".join(text_parts).split()
+        return " ".join(words[:6])
 
     async def maybe_update_thread_title(
         self,
@@ -440,14 +474,33 @@ Your user_id is always: "{user_id}"
             logger.debug(f"Title agent run completed: {run}")
 
             # Update thread with generated title
-            thread.title = run.final_output.strip()
+            raw_title = run.final_output.strip()
+            user_text = self._extract_user_title(input_item)
+
+            # If model returned empty string, fall back to user text
+            if not raw_title:
+                logger.warning("Title agent returned empty string, falling back to user text")
+                thread.title = user_text
+            elif self._looks_like_instructions(raw_title, user_text):
+                logger.warning(
+                    f"Title agent returned instructions instead of title, falling back to user text"
+                )
+                thread.title = user_text
+            else:
+                # Truncate long titles
+                MAX_TITLE_LENGTH = 100
+                if len(raw_title) > MAX_TITLE_LENGTH:
+                    thread.title = raw_title[:MAX_TITLE_LENGTH].rsplit(" ", 1)[0] + "..."
+                    logger.warning(
+                        f"Truncated title from {len(raw_title)} to {len(thread.title)} chars"
+                    )
+                else:
+                    thread.title = raw_title
             logger.info(f"Generated title: '{thread.title}'")
 
             # Save the updated thread
             await self.store.save_thread(thread, context)
-            logger.info(
-                f"Saved thread with title: '{thread.title}' for thread {thread.id}"
-            )
+            logger.info(f"Saved thread with title: '{thread.title}' for thread {thread.id}")
 
         except Exception as e:
             logger.error(f"Failed to generate thread title: {e}", exc_info=True)
@@ -482,14 +535,11 @@ Your user_id is always: "{user_id}"
                 f"input_type={type(input).__name__}, has_input={input is not None}"
             )
 
-            # Generate thread title asynchronously (non-blocking)
-            # This runs in the background while the agent responds
+            # Generate thread title synchronously before streaming begins
+            # This ensures the title is set before _process_events captures last_thread,
+            # preventing a mid-stream ThreadUpdatedEvent that could confuse ChatKit
             if input and isinstance(input, UserMessageItem):
-                import asyncio
-
-                asyncio.create_task(
-                    self.maybe_update_thread_title(thread, input, context)
-                )
+                await self.maybe_update_thread_title(thread, input, context)
 
             # Create agent context - gives the agent access to the store
             agent_context = AgentContext(
@@ -549,9 +599,7 @@ Your user_id is always: "{user_id}"
                         item_input = await simple_to_agent_input(item)
                         if item_input:
                             history_items.extend(item_input)
-                logger.info(
-                    f"Loaded {len(history_items)} history items from conversation"
-                )
+                logger.info(f"Loaded {len(history_items)} history items from conversation")
             except Exception as history_err:
                 logger.warning(f"Could not load conversation history: {history_err}")
                 history_items = []
@@ -585,6 +633,8 @@ Your user_id is always: "{user_id}"
 
             async for event in stream_agent_response(agent_context, result):
                 event_count += 1
+                raw_type = getattr(event, "type", "unknown")
+                logger.debug(f"📩 Received event #{event_count} from agent: type={raw_type}")
 
                 # Trigger revalidation immediately after any item is added to the thread
                 if (
@@ -593,20 +643,38 @@ Your user_id is always: "{user_id}"
                     and event.type == "thread.item.added"
                 ):
                     import asyncio
+
                     asyncio.create_task(trigger_frontend_revalidation("chatbot_tool_call"))
                     has_revalidated = True
                     logger.info("⚡ Triggered fast revalidation after item added")
 
                 # Skip streaming updates (thread.item.updated) for assistant messages
                 # Only show final complete message (thread.item.done)
+                # Note: ThreadItemUpdatedEvent has item_id + update, NOT an .item field
                 if (
                     hasattr(event, "type")
                     and event.type == "thread.item.updated"
-                    and hasattr(event, "item")
-                    and event.item.type == "assistant_message"
+                    and hasattr(event, "update")
+                    and hasattr(event.update, "type")
+                    and isinstance(event.update.type, str)
+                    and event.update.type.startswith("assistant_message.")
                 ):
-                    logger.debug(f"⏭️ Skipping streaming update for assistant message")
+                    logger.debug(
+                        f"⏭️ Skipping streaming update for assistant message: {event.update.type}"
+                    )
                     continue  # Don't yield streaming deltas
+
+                # Skip workflow task updates - we'll show a single "Thinking..." step instead
+                if (
+                    hasattr(event, "type")
+                    and event.type == "thread.item.updated"
+                    and hasattr(event, "update")
+                    and hasattr(event.update, "type")
+                    and isinstance(event.update.type, str)
+                    and event.update.type.startswith("workflow.")
+                ):
+                    logger.debug(f"⏭️ Skipping workflow task update: {event.update.type}")
+                    continue  # Don't yield task-level progress
 
                 # DEDUPLICATION LOGIC: Only process and yield final complete messages
                 if (
@@ -615,14 +683,19 @@ Your user_id is always: "{user_id}"
                     and event.type == "thread.item.done"
                     and event.item.type == "assistant_message"
                 ):
-                    # Extract content for logging and deduplication
+                    # Extract text content for logging and deduplication
                     content = ""
                     if hasattr(event.item, "content") and event.item.content:
                         if isinstance(event.item.content, list):
-                            content = "".join(
-                                c.get("text", "") if isinstance(c, dict) else str(c)
-                                for c in event.item.content
-                            )
+                            parts = []
+                            for c in event.item.content:
+                                if isinstance(c, dict):
+                                    parts.append(c.get("text", ""))
+                                elif hasattr(c, "text"):
+                                    parts.append(c.text)
+                                else:
+                                    parts.append(str(c))
+                            content = "".join(parts)
                         elif isinstance(event.item.content, dict):
                             content = event.item.content.get("text", "")
                         else:
@@ -637,7 +710,9 @@ Your user_id is always: "{user_id}"
 
                     # Check if we've already sent this exact message content
                     if normalized_content in sent_message_content:
-                        logger.warning(f"🚫 BLOCKED DUPLICATE MESSAGE CONTENT: {normalized_content[:100]}...")
+                        logger.warning(
+                            f"🚫 BLOCKED DUPLICATE MESSAGE CONTENT: {normalized_content[:100]}..."
+                        )
                         continue  # Don't yield duplicate content
 
                     # Check if we've already sent this message ID
@@ -645,10 +720,10 @@ Your user_id is always: "{user_id}"
                         logger.warning(f"🚫 BLOCKED DUPLICATE MESSAGE ID: {event.item.id}")
                         continue  # Don't yield duplicates
 
-                    # Generate proper ID if it's fake or contains fake_id
-                    if event.item.id == "__fake_id__" or "__fake_id__" in event.item.id or event.item.id.startswith("message_"):
+                    # Regenerate placeholder IDs to prevent collisions
+                    if event.item.id == "__fake_id__" or "__fake_id__" in str(event.item.id):
                         event.item.id = self.store.generate_item_id("message", thread, context)
-                        logger.info(f"✨ Generated new message ID: {event.item.id}")
+                        logger.info(f"✨ Generated real ID for fake message: {event.item.id}")
 
                     # Record this message ID and content as sent
                     sent_message_ids.add(event.item.id)
@@ -668,7 +743,48 @@ Your user_id is always: "{user_id}"
 
                     # AFTER yielding the message, trigger revalidation
                     logger.info("🔔 Assistant message sent - frontend should revalidate now")
+                elif (
+                    hasattr(event, "type")
+                    and event.type == "thread.item.added"
+                    and hasattr(event, "item")
+                    and hasattr(event.item, "type")
+                    and event.item.type == "workflow"
+                ):
+                    # Pre-populate workflow with a "Thinking..." task so ChatKit
+                    # shows it immediately instead of the default "Thought for a moment"
+                    if not event.item.workflow.tasks or len(event.item.workflow.tasks) == 0:
+                        event.item.workflow.tasks = [
+                            ThoughtTask(
+                                title="Thinking...",
+                                content="Processing your request",
+                            )
+                        ]
+                    event_id = getattr(event.item, "id", "unknown")
+                    logger.debug(f"📡 Yielding workflow added with Thinking task: id={event_id}")
+                    yield event
+                elif (
+                    hasattr(event, "type")
+                    and event.type == "thread.item.done"
+                    and hasattr(event, "item")
+                    and hasattr(event.item, "type")
+                    and event.item.type == "workflow"
+                ):
+                    # Simplify workflow tasks to a single clean "Thinking..." step
+                    event.item.workflow.tasks = [
+                        ThoughtTask(
+                            title="Thinking...",
+                            content="Processing your request",
+                        )
+                    ]
+                    event_id = getattr(event.item, "id", "unknown")
+                    logger.debug(f"📡 Yielding simplified workflow done: id={event_id}")
+                    yield event
                 else:
+                    event_type = getattr(event, "type", "unknown")
+                    event_id = getattr(event, "item_id", getattr(event, "id", "unknown"))
+                    if hasattr(event, "item"):
+                        event_id = getattr(event.item, "id", event_id)
+                    logger.debug(f"📡 Yielding event: type={event_type}, id={event_id}")
                     # For non-assistant-message events (tool calls, etc.), yield normally
                     yield event
 
@@ -695,6 +811,7 @@ Your user_id is always: "{user_id}"
             # Ensure MCP server is properly disconnected in the same task context
             if mcp_server is not None:
                 import asyncio
+
                 try:
                     # Use asyncio.shield to ensure cleanup completes even if task is cancelled
                     await asyncio.shield(mcp_server.cleanup())

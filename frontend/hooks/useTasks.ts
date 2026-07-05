@@ -29,10 +29,10 @@ export function useTasks(params: TaskQueryParams = {}) {
   return useQuery({
     queryKey: tasksKeys.list(params),
     queryFn: () => getTasks(params),
-    staleTime: 0,
+    staleTime: 30_000,
     gcTime: 5 * 60 * 1000,
     refetchOnWindowFocus: true,
-    refetchOnMount: 'always',
+    refetchOnMount: true,
   });
 }
 
@@ -93,8 +93,8 @@ export function useCreateTask() {
       console.error('Failed to create task:', error);
     },
 
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: tasksKeys.all });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: tasksKeys.lists() });
       queryClient.invalidateQueries({ queryKey: ['analytics'] });
     },
   });
@@ -187,12 +187,10 @@ export function useUpdateTask() {
       console.error("Failed to update task:", error);
     },
 
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: tasksKeys.all });
-      queryClient.invalidateQueries({ queryKey: ['analytics'] });
-    },
-
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: tasksKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: ['analytics'] });
+
       toast({
         title: "Task updated",
         description: "Your task has been updated successfully.",
@@ -273,8 +271,8 @@ export function useToggleTask() {
       });
     },
 
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: tasksKeys.all });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: tasksKeys.lists() });
       queryClient.invalidateQueries({ queryKey: ['analytics'] });
     },
   });
@@ -344,12 +342,10 @@ export function useBulkToggle() {
       });
     },
 
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: tasksKeys.all });
-      queryClient.invalidateQueries({ queryKey: ['analytics'] });
-    },
-
     onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: tasksKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: ['analytics'] });
+
       const count = data?.updated_count || 0;
       toast({
         title: "Tasks updated",
@@ -414,12 +410,10 @@ export function useDeleteTask() {
       });
     },
 
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: tasksKeys.all });
-      queryClient.invalidateQueries({ queryKey: ['analytics'] });
-    },
-
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: tasksKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: ['analytics'] });
+
       toast({
         title: "Task moved to trash",
         description: "You can restore it from the trash view.",
@@ -490,12 +484,10 @@ export function useBulkDelete() {
       });
     },
 
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: tasksKeys.all });
-      queryClient.invalidateQueries({ queryKey: ['analytics'] });
-    },
-
     onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: tasksKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: ['analytics'] });
+
       const count = data?.updated_count || 0;
       toast({
         title: "Tasks moved to trash",
@@ -512,7 +504,7 @@ export function useTrash(params: TaskQueryParams = {}) {
   return useQuery({
     queryKey: [...tasksKeys.all, 'trash', params],
     queryFn: () => getTrash(params),
-    staleTime: 30000,
+    staleTime: 60_000,
     gcTime: 5 * 60 * 1000,
   });
 }
@@ -564,12 +556,10 @@ export function useRestoreTask() {
       });
     },
 
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: tasksKeys.all });
-      queryClient.invalidateQueries({ queryKey: ['analytics'] });
-    },
-
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: tasksKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: ['analytics'] });
+
       toast({
         title: "Task restored",
         description: "The task has been restored successfully.",
@@ -625,12 +615,9 @@ export function usePermanentDelete() {
       });
     },
 
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: tasksKeys.all });
-      queryClient.invalidateQueries({ queryKey: ['analytics'] });
-    },
-
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [...tasksKeys.all, 'trash'] });
+
       toast({
         title: "Task permanently deleted",
         description: "This action cannot be undone.",
@@ -704,8 +691,8 @@ export function useReorderTasks() {
       });
     },
 
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: tasksKeys.all });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: tasksKeys.lists() });
     },
   });
 }

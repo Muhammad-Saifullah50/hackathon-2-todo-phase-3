@@ -10,7 +10,12 @@ export default async function authMiddleware(request: NextRequest) {
     }
   );
 
-  const session = await sessionResponse.json();
+  let session;
+  try {
+    session = await sessionResponse.json();
+  } catch {
+    return NextResponse.redirect(new URL("/sign-in", request.url));
+  }
 
   if (!session || sessionResponse.status !== 200) {
     return NextResponse.redirect(new URL("/sign-in", request.url));

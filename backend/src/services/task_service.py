@@ -152,11 +152,12 @@ class TaskService:
         if search is not None and search.strip():
             search_term = f"%{search.strip()}%"
             from sqlalchemy import or_
+
             filters.append(
                 or_(
                     Task.title.ilike(search_term),
                     Task.description.ilike(search_term),
-                    Task.notes.ilike(search_term)
+                    Task.notes.ilike(search_term),
                 )
             )
 
@@ -179,11 +180,7 @@ class TaskService:
             # Convert string IDs to UUID
             tag_uuids = [UUID(tag_id) for tag_id in tag_ids]
             # Subquery to find task IDs that have any of the specified tags
-            tag_subquery = (
-                select(TaskTag.task_id)
-                .where(TaskTag.tag_id.in_(tag_uuids))
-                .distinct()
-            )
+            tag_subquery = select(TaskTag.task_id).where(TaskTag.tag_id.in_(tag_uuids)).distinct()
             filters.append(Task.id.in_(tag_subquery))
 
         # Build count query for pagination
@@ -201,8 +198,7 @@ class TaskService:
 
         # Eager load task_tags with associated tag for each task, and subtasks
         query = query.options(
-            selectinload(Task.task_tags).selectinload(TaskTag.tag),
-            selectinload(Task.subtasks)
+            selectinload(Task.task_tags).selectinload(TaskTag.tag), selectinload(Task.subtasks)
         )
 
         # Apply sorting
@@ -212,14 +208,10 @@ class TaskService:
             # Sort by manual_order first (nulls last), then by created_at as secondary
             if sort_order == "desc":
                 query = query.order_by(
-                    Task.manual_order.desc().nulls_last(),
-                    Task.created_at.desc()
+                    Task.manual_order.desc().nulls_last(), Task.created_at.desc()
                 )
             else:
-                query = query.order_by(
-                    Task.manual_order.asc().nulls_last(),
-                    Task.created_at.asc()
-                )
+                query = query.order_by(Task.manual_order.asc().nulls_last(), Task.created_at.asc())
         else:
             # For other sort columns, use direct sorting
             sort_column = getattr(Task, sort_by, Task.created_at)
@@ -259,7 +251,7 @@ class TaskService:
         )
 
     async def _get_task_metadata(self, user_id: str) -> TaskMetadata:
-        """Get task count metadata for a user.
+        """Get task count metadata for a user using a single query.
 
         Args:
             user_id: ID of the user.
@@ -267,59 +259,26 @@ class TaskService:
         Returns:
             TaskMetadata with count statistics.
         """
-        # Active tasks count
-        active_query = (
-            select(func.count())
-            .select_from(Task)
-            .where(and_(Task.user_id == user_id, Task.deleted_at.is_(None)))
-        )
-        active_result = await self.session.execute(active_query)
-        total_active = active_result.scalar_one()
+        active_cond = and_(Task.deleted_at.is_(None))
+        pending_cond = and_(Task.deleted_at.is_(None), Task.status == TaskStatus.PENDING)
+        completed_cond = and_(Task.deleted_at.is_(None), Task.status == TaskStatus.COMPLETED)
+        deleted_cond = Task.deleted_at.isnot(None)
 
-        # Pending tasks count
-        pending_query = (
-            select(func.count())
-            .select_from(Task)
-            .where(
-                and_(
-                    Task.user_id == user_id,
-                    Task.deleted_at.is_(None),
-                    Task.status == TaskStatus.PENDING,
-                )
-            )
-        )
-        pending_result = await self.session.execute(pending_query)
-        total_pending = pending_result.scalar_one()
+        count_query = select(
+            func.count().filter(active_cond).label("total_active"),
+            func.count().filter(pending_cond).label("total_pending"),
+            func.count().filter(completed_cond).label("total_completed"),
+            func.count().filter(deleted_cond).label("total_deleted"),
+        ).where(Task.user_id == user_id)
 
-        # Completed tasks count
-        completed_query = (
-            select(func.count())
-            .select_from(Task)
-            .where(
-                and_(
-                    Task.user_id == user_id,
-                    Task.deleted_at.is_(None),
-                    Task.status == TaskStatus.COMPLETED,
-                )
-            )
-        )
-        completed_result = await self.session.execute(completed_query)
-        total_completed = completed_result.scalar_one()
-
-        # Deleted tasks count
-        deleted_query = (
-            select(func.count())
-            .select_from(Task)
-            .where(and_(Task.user_id == user_id, Task.deleted_at.isnot(None)))
-        )
-        deleted_result = await self.session.execute(deleted_query)
-        total_deleted = deleted_result.scalar_one()
+        result = await self.session.execute(count_query)
+        row = result.one()
 
         return TaskMetadata(
-            total_pending=total_pending,
-            total_completed=total_completed,
-            total_active=total_active,
-            total_deleted=total_deleted,
+            total_active=row.total_active,
+            total_pending=row.total_pending,
+            total_completed=row.total_completed,
+            total_deleted=row.total_deleted,
         )
 
     async def update_task(
@@ -354,17 +313,14 @@ class TaskService:
         """
         # Validate at least one field is provided
         if all(
-            field is None
-            for field in [title, description, due_date, notes, manual_order, priority]
+            field is None for field in [title, description, due_date, notes, manual_order, priority]
         ):
             raise ValueError("At least one field must be provided")
 
         # Fetch the task
         from uuid import UUID
 
-        query = select(Task).where(
-            and_(Task.id == UUID(task_id), Task.deleted_at.is_(None))
-        )
+        query = select(Task).where(and_(Task.id == UUID(task_id), Task.deleted_at.is_(None)))
         result = await self.session.execute(query)
         task = result.scalar_one_or_none()
 
@@ -432,9 +388,7 @@ class TaskService:
         from uuid import UUID
 
         # Fetch the task
-        query = select(Task).where(
-            and_(Task.id == UUID(task_id), Task.deleted_at.is_(None))
-        )
+        query = select(Task).where(and_(Task.id == UUID(task_id), Task.deleted_at.is_(None)))
         result = await self.session.execute(query)
         task = result.scalar_one_or_none()
 
@@ -466,6 +420,7 @@ class TaskService:
         if was_pending and task.status == TaskStatus.COMPLETED:
             try:
                 from src.services.recurring_service import RecurringService
+
                 recurring_service = RecurringService(self.session)
                 await recurring_service.generate_next_instance(UUID(task_id))
             except ValueError:
@@ -535,9 +490,7 @@ class TaskService:
         uuid_list = [UUID(task_id) for task_id in task_ids]
 
         # Fetch all tasks
-        query = select(Task).where(
-            and_(Task.id.in_(uuid_list), Task.deleted_at.is_(None))
-        )
+        query = select(Task).where(and_(Task.id.in_(uuid_list), Task.deleted_at.is_(None)))
         result = await self.session.execute(query)
         tasks = list(result.scalars().all())
 
@@ -550,9 +503,7 @@ class TaskService:
         # Verify ownership of all tasks
         for task in tasks:
             if task.user_id != user_id:
-                raise PermissionError(
-                    f"You don't have permission to update task {task.id}"
-                )
+                raise PermissionError(f"You don't have permission to update task {task.id}")
 
         # Update all tasks
         now = datetime.now(timezone.utc)
@@ -590,9 +541,7 @@ class TaskService:
         from uuid import UUID
 
         # Fetch the task
-        query = select(Task).where(
-            and_(Task.id == UUID(task_id), Task.deleted_at.is_(None))
-        )
+        query = select(Task).where(and_(Task.id == UUID(task_id), Task.deleted_at.is_(None)))
         result = await self.session.execute(query)
         task = result.scalar_one_or_none()
 
@@ -641,9 +590,7 @@ class TaskService:
         uuid_list = [UUID(task_id) for task_id in task_ids]
 
         # Fetch all tasks
-        query = select(Task).where(
-            and_(Task.id.in_(uuid_list), Task.deleted_at.is_(None))
-        )
+        query = select(Task).where(and_(Task.id.in_(uuid_list), Task.deleted_at.is_(None)))
         result = await self.session.execute(query)
         tasks = list(result.scalars().all())
 
@@ -656,9 +603,7 @@ class TaskService:
         # Verify ownership of all tasks
         for task in tasks:
             if task.user_id != user_id:
-                raise PermissionError(
-                    f"You don't have permission to delete task {task.id}"
-                )
+                raise PermissionError(f"You don't have permission to delete task {task.id}")
 
         # Soft delete all tasks
         now = datetime.now(timezone.utc)
@@ -704,9 +649,7 @@ class TaskService:
         uuid_list = [UUIDType(task_id) for task_id in task_ids]
 
         # Fetch all tasks
-        query = select(Task).where(
-            and_(Task.id.in_(uuid_list), Task.deleted_at.is_(None))
-        )
+        query = select(Task).where(and_(Task.id.in_(uuid_list), Task.deleted_at.is_(None)))
         result = await self.session.execute(query)
         tasks = list(result.scalars().all())
 
@@ -719,9 +662,7 @@ class TaskService:
         # Verify ownership of all tasks
         for task in tasks:
             if task.user_id != user_id:
-                raise PermissionError(
-                    f"You don't have permission to reorder task {task.id}"
-                )
+                raise PermissionError(f"You don't have permission to reorder task {task.id}")
 
         # Create a map for quick lookup
         task_map = {str(task.id): task for task in tasks}
@@ -837,9 +778,7 @@ class TaskService:
         from uuid import UUID
 
         # Fetch the task from trash
-        query = select(Task).where(
-            and_(Task.id == UUID(task_id), Task.deleted_at.isnot(None))
-        )
+        query = select(Task).where(and_(Task.id == UUID(task_id), Task.deleted_at.isnot(None)))
         result = await self.session.execute(query)
         task = result.scalar_one_or_none()
 
@@ -875,9 +814,7 @@ class TaskService:
         from uuid import UUID
 
         # Fetch the task from trash
-        query = select(Task).where(
-            and_(Task.id == UUID(task_id), Task.deleted_at.isnot(None))
-        )
+        query = select(Task).where(and_(Task.id == UUID(task_id), Task.deleted_at.isnot(None)))
         result = await self.session.execute(query)
         task = result.scalar_one_or_none()
 
@@ -923,9 +860,7 @@ class TaskService:
         today_end = now.replace(hour=23, minute=59, second=59, microsecond=999999)
 
         # Base query: active tasks only
-        base_query = select(Task).where(
-            and_(Task.user_id == user_id, Task.deleted_at.is_(None))
-        )
+        base_query = select(Task).where(and_(Task.user_id == user_id, Task.deleted_at.is_(None)))
 
         # Apply due date filter
         if filter == "overdue":
@@ -1008,9 +943,7 @@ class TaskService:
         from uuid import UUID
 
         # Fetch task
-        query = select(Task).where(
-            and_(Task.id == UUID(task_id), Task.deleted_at.is_(None))
-        )
+        query = select(Task).where(and_(Task.id == UUID(task_id), Task.deleted_at.is_(None)))
         result = await self.session.execute(query)
         task = result.scalar_one_or_none()
 
@@ -1053,12 +986,16 @@ class TaskService:
         )
 
         # Overdue count
-        overdue_query = base_query.where(and_(Task.due_date.isnot(None), Task.due_date < today_start))
+        overdue_query = base_query.where(
+            and_(Task.due_date.isnot(None), Task.due_date < today_start)
+        )
         overdue_result = await self.session.execute(overdue_query)
         overdue_count = overdue_result.scalar_one()
 
         # Due today count
-        today_query = base_query.where(and_(Task.due_date >= today_start, Task.due_date <= today_end))
+        today_query = base_query.where(
+            and_(Task.due_date >= today_start, Task.due_date <= today_end)
+        )
         today_result = await self.session.execute(today_query)
         due_today_count = today_result.scalar_one()
 
@@ -1135,6 +1072,7 @@ class TaskService:
         if query and query.strip():
             search_term = f"%{query.strip()}%"
             from sqlalchemy import or_
+
             filters.append(
                 or_(
                     Task.title.ilike(search_term),
@@ -1172,18 +1110,13 @@ class TaskService:
                 filters.append(Task.notes != "")
             else:
                 from sqlalchemy import or_
-                filters.append(
-                    or_(Task.notes.is_(None), Task.notes == "")
-                )
+
+                filters.append(or_(Task.notes.is_(None), Task.notes == ""))
 
         # Add tag filter (tasks with ANY of the specified tags)
         if tag_ids is not None and len(tag_ids) > 0:
             tag_uuids = [UUID(tag_id) for tag_id in tag_ids]
-            tag_subquery = (
-                select(TaskTag.task_id)
-                .where(TaskTag.tag_id.in_(tag_uuids))
-                .distinct()
-            )
+            tag_subquery = select(TaskTag.task_id).where(TaskTag.tag_id.in_(tag_uuids)).distinct()
             filters.append(Task.id.in_(tag_subquery))
 
         # Build count query
@@ -1201,8 +1134,7 @@ class TaskService:
 
         # Eager load tags and subtasks
         main_query = main_query.options(
-            selectinload(Task.task_tags).selectinload(TaskTag.tag),
-            selectinload(Task.subtasks)
+            selectinload(Task.task_tags).selectinload(TaskTag.tag), selectinload(Task.subtasks)
         )
 
         # Sort by relevance (if search query) or by created_at
@@ -1283,7 +1215,7 @@ class TaskService:
             AutocompleteSuggestion(
                 id=str(task.id),
                 title=task.title,
-                status=task.status.value if hasattr(task.status, 'value') else str(task.status),
+                status=task.status.value if hasattr(task.status, "value") else str(task.status),
             )
             for task in tasks
         ]
@@ -1309,55 +1241,37 @@ class TaskService:
         # Base conditions: active tasks only
         base_conditions = and_(Task.user_id == user_id, Task.deleted_at.is_(None))
 
-        # Today count (due date is today)
-        today_query = select(func.count()).where(
-            and_(
-                base_conditions,
-                Task.due_date >= today_start,
-                Task.due_date <= today_end,
+        # Single query for all counts using FILTER (WHERE ...)
+        count_query = select(
+            func.count()
+            .filter(and_(base_conditions, Task.due_date >= today_start, Task.due_date <= today_end))
+            .label("today"),
+            func.count()
+            .filter(and_(base_conditions, Task.due_date >= today_start, Task.due_date < week_end))
+            .label("this_week"),
+            func.count()
+            .filter(and_(base_conditions, Task.priority == TaskPriority.HIGH))
+            .label("high_priority"),
+            func.count()
+            .filter(
+                and_(
+                    base_conditions,
+                    Task.due_date.isnot(None),
+                    Task.due_date < today_start,
+                    Task.status != TaskStatus.COMPLETED,
+                )
             )
+            .label("overdue"),
         )
-        today_result = await self.session.execute(today_query)
-        today_count = today_result.scalar_one()
 
-        # This week count (due date within 7 days)
-        week_query = select(func.count()).where(
-            and_(
-                base_conditions,
-                Task.due_date >= today_start,
-                Task.due_date < week_end,
-            )
-        )
-        week_result = await self.session.execute(week_query)
-        week_count = week_result.scalar_one()
-
-        # High priority count
-        high_priority_query = select(func.count()).where(
-            and_(
-                base_conditions,
-                Task.priority == TaskPriority.HIGH,
-            )
-        )
-        high_priority_result = await self.session.execute(high_priority_query)
-        high_priority_count = high_priority_result.scalar_one()
-
-        # Overdue count (due date before today)
-        overdue_query = select(func.count()).where(
-            and_(
-                base_conditions,
-                Task.due_date.isnot(None),
-                Task.due_date < today_start,
-                Task.status != TaskStatus.COMPLETED,
-            )
-        )
-        overdue_result = await self.session.execute(overdue_query)
-        overdue_count = overdue_result.scalar_one()
+        result = await self.session.execute(count_query)
+        row = result.one()
 
         return {
-            "today": today_count,
-            "this_week": week_count,
-            "high_priority": high_priority_count,
-            "overdue": overdue_count,
+            "today": row.today,
+            "this_week": row.this_week,
+            "high_priority": row.high_priority,
+            "overdue": row.overdue,
         }
 
     # ============================================================================
@@ -1365,7 +1279,7 @@ class TaskService:
     # ============================================================================
 
     async def get_analytics_stats(self, user_id: str):
-        """Get dashboard analytics stats.
+        """Get dashboard analytics stats using a single query.
 
         Returns counts for pending, completed today, overdue, and total tasks.
 
@@ -1385,53 +1299,48 @@ class TaskService:
         # Base conditions: active tasks only
         base_conditions = and_(Task.user_id == user_id, Task.deleted_at.is_(None))
 
-        # Pending count
-        pending_query = select(func.count()).where(
-            and_(base_conditions, Task.status == TaskStatus.PENDING)
-        )
-        pending_result = await self.session.execute(pending_query)
-        pending_count = pending_result.scalar_one()
-
-        # Completed today count
-        completed_today_query = select(func.count()).where(
-            and_(
-                base_conditions,
-                Task.status == TaskStatus.COMPLETED,
-                Task.completed_at >= today_start,
-                Task.completed_at <= today_end,
+        # Single query for all counts using FILTER (WHERE ...)
+        count_query = select(
+            func.count()
+            .filter(and_(base_conditions, Task.status == TaskStatus.PENDING))
+            .label("pending_count"),
+            func.count()
+            .filter(
+                and_(
+                    base_conditions,
+                    Task.status == TaskStatus.COMPLETED,
+                    Task.completed_at >= today_start,
+                    Task.completed_at <= today_end,
+                )
             )
-        )
-        completed_today_result = await self.session.execute(completed_today_query)
-        completed_today_count = completed_today_result.scalar_one()
-
-        # Overdue count (due before today, not completed)
-        overdue_query = select(func.count()).where(
-            and_(
-                base_conditions,
-                Task.due_date.isnot(None),
-                Task.due_date < today_start,
-                Task.status != TaskStatus.COMPLETED,
+            .label("completed_today_count"),
+            func.count()
+            .filter(
+                and_(
+                    base_conditions,
+                    Task.due_date.isnot(None),
+                    Task.due_date < today_start,
+                    Task.status != TaskStatus.COMPLETED,
+                )
             )
+            .label("overdue_count"),
+            func.count().filter(base_conditions).label("total_count"),
         )
-        overdue_result = await self.session.execute(overdue_query)
-        overdue_count = overdue_result.scalar_one()
 
-        # Total active tasks count
-        total_query = select(func.count()).where(base_conditions)
-        total_result = await self.session.execute(total_query)
-        total_count = total_result.scalar_one()
+        result = await self.session.execute(count_query)
+        row = result.one()
 
         return AnalyticsStatsResponse(
-            pending_count=pending_count,
-            completed_today_count=completed_today_count,
-            overdue_count=overdue_count,
-            total_count=total_count,
+            pending_count=row.pending_count,
+            completed_today_count=row.completed_today_count,
+            overdue_count=row.overdue_count,
+            total_count=row.total_count,
         )
 
     async def get_completion_trend(self, user_id: str, days: int = 7):
         """Get completion trend over the specified number of days.
 
-        Returns daily completed and created task counts.
+        Uses a single GROUP BY query instead of N*2 individual queries.
 
         Args:
             user_id: ID of the authenticated user.
@@ -1441,6 +1350,7 @@ class TaskService:
             CompletionTrendResponse with daily data points.
         """
         from datetime import timedelta
+        from sqlalchemy import cast, Date
         from src.schemas.task_schemas import CompletionTrendResponse, CompletionTrendDataPoint
 
         # Validate days parameter
@@ -1448,51 +1358,55 @@ class TaskService:
 
         now = datetime.now(timezone.utc)
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        period_start = today_start - timedelta(days=days - 1)
 
+        # Base conditions: active tasks only within the period
+        base_conditions = and_(
+            Task.user_id == user_id,
+            Task.deleted_at.is_(None),
+            Task.created_at >= period_start,
+        )
+
+        # Single GROUP BY query for completed and created per day
+        trend_query = (
+            select(
+                cast(Task.created_at, Date).label("date"),
+                func.count().filter(and_(Task.completed_at >= period_start)).label("completed"),
+                func.count().label("created"),
+            )
+            .where(base_conditions)
+            .group_by(cast(Task.created_at, Date))
+            .order_by(cast(Task.created_at, Date))
+        )
+
+        result = await self.session.execute(trend_query)
+        rows = result.all()
+
+        # Build lookup from query results
+        trend_by_date = {}
+        for row in rows:
+            date_str = row.date.isoformat() if hasattr(row.date, "isoformat") else str(row.date)
+            trend_by_date[date_str] = {"completed": row.completed, "created": row.created}
+
+        # Fill in all days in range, using 0 for missing days
         data_points = []
-
-        # Generate data for each day
-        for day_offset in range(days - 1, -1, -1):
-            day_start = today_start - timedelta(days=day_offset)
-            day_end = day_start + timedelta(days=1)
-
-            # Base conditions: active tasks only
-            base_conditions = and_(Task.user_id == user_id, Task.deleted_at.is_(None))
-
-            # Completed on this day
-            completed_query = select(func.count()).where(
-                and_(
-                    base_conditions,
-                    Task.completed_at >= day_start,
-                    Task.completed_at < day_end,
-                )
-            )
-            completed_result = await self.session.execute(completed_query)
-            completed_count = completed_result.scalar_one()
-
-            # Created on this day
-            created_query = select(func.count()).where(
-                and_(
-                    base_conditions,
-                    Task.created_at >= day_start,
-                    Task.created_at < day_end,
-                )
-            )
-            created_result = await self.session.execute(created_query)
-            created_count = created_result.scalar_one()
+        for day_offset in range(days):
+            day = period_start + timedelta(days=day_offset)
+            date_str = day.strftime("%Y-%m-%d")
+            counts = trend_by_date.get(date_str, {"completed": 0, "created": 0})
 
             data_points.append(
                 CompletionTrendDataPoint(
-                    date=day_start.strftime("%Y-%m-%d"),
-                    completed=completed_count,
-                    created=created_count,
+                    date=date_str,
+                    completed=counts["completed"],
+                    created=counts["created"],
                 )
             )
 
         return CompletionTrendResponse(data=data_points, days=days)
 
     async def get_priority_breakdown(self, user_id: str):
-        """Get task breakdown by priority.
+        """Get task breakdown by priority using a single GROUP BY query.
 
         Returns count and percentage for each priority level.
 
@@ -1507,14 +1421,27 @@ class TaskService:
         # Base conditions: active tasks only
         base_conditions = and_(Task.user_id == user_id, Task.deleted_at.is_(None))
 
-        # Count by priority
-        priority_counts = {}
-        for priority in [TaskPriority.LOW, TaskPriority.MEDIUM, TaskPriority.HIGH]:
-            query = select(func.count()).where(
-                and_(base_conditions, Task.priority == priority)
+        # Single GROUP BY query for all priority counts
+        priority_query = (
+            select(
+                Task.priority,
+                func.count().label("count"),
             )
-            result = await self.session.execute(query)
-            priority_counts[priority.value] = result.scalar_one()
+            .where(base_conditions)
+            .group_by(Task.priority)
+        )
+
+        result = await self.session.execute(priority_query)
+        rows = result.all()
+
+        # Build lookup from query results
+        priority_counts = {
+            TaskPriority.LOW.value: 0,
+            TaskPriority.MEDIUM.value: 0,
+            TaskPriority.HIGH.value: 0,
+        }
+        for row in rows:
+            priority_counts[row.priority] = row.count
 
         # Calculate total and percentages
         total = sum(priority_counts.values())
