@@ -12,11 +12,12 @@ import { useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 
-const taskQueryKeys = new Set(['tasks', 'task', 'analytics', 'tags', 'trash']);
+import { tasksKeys } from './useTasks';
 
 /**
  * Sync task data after chatbot interactions.
  * Invalidates relevant React Query caches and triggers a router refresh.
+ * Uses explicit query-key invalidation matching the pattern from useTasks mutation hooks.
  */
 export function useChatTaskSync() {
   const router = useRouter();
@@ -28,10 +29,10 @@ export function useChatTaskSync() {
     if (now - lastRevalidationRef.current < 1000) return;
     lastRevalidationRef.current = now;
 
-    await queryClient.invalidateQueries({
-      predicate: (query) => taskQueryKeys.has(query.queryKey[0] as string),
-      refetchType: 'active',
-    });
+    queryClient.invalidateQueries({ queryKey: tasksKeys.lists() });
+    queryClient.invalidateQueries({ queryKey: ['analytics'] });
+    queryClient.invalidateQueries({ queryKey: ['tags'] });
+    queryClient.invalidateQueries({ queryKey: [...tasksKeys.all, 'trash'] });
     router.refresh();
   }, [queryClient, router]);
 

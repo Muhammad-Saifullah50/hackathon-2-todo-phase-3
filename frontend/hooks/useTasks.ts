@@ -29,10 +29,16 @@ export function useTasks(params: TaskQueryParams = {}) {
   return useQuery({
     queryKey: tasksKeys.list(params),
     queryFn: () => getTasks(params),
-    staleTime: 30_000,
+    staleTime: 10_000,
     gcTime: 5 * 60 * 1000,
     refetchOnWindowFocus: true,
     refetchOnMount: true,
+    refetchInterval: (query) => {
+      if (typeof window !== 'undefined' && (window as any).__chatActive) {
+        return 3000;
+      }
+      return false;
+    },
   });
 }
 

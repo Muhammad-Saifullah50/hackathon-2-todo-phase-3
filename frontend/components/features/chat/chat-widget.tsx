@@ -121,6 +121,20 @@ export function ChatWidget() {
     );
   }
 
+  // Set global flag so useTasks enables polling while chat is open
+  // This catches task changes created by the MCP agent mid-conversation,
+  // before onResponseEnd fires at the end of the agent's response.
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      (window as any).__chatActive = isOpen;
+    }
+    return () => {
+      if (typeof window !== "undefined") {
+        (window as any).__chatActive = false;
+      }
+    };
+  }, [isOpen]);
+
   // Expose global handler for potential external triggers
   useEffect(() => {
     if (typeof window !== "undefined") {
