@@ -115,7 +115,7 @@ export function ChatWidget() {
     console.error("[ChatWidget] Failed to initialize:", error);
     // Return minimal UI if ChatKit fails to initialize
     return (
-      <div className="fixed bottom-4 right-4 z-50 p-4 bg-red-500 text-white rounded-lg">
+      <div className="fixed bottom-20 md:bottom-4 right-4 z-50 p-4 bg-red-500 text-white rounded-lg">
         ChatKit failed to load
       </div>
     );
@@ -164,7 +164,7 @@ export function ChatWidget() {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-4 right-4 z-50 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition-all hover:scale-105 bg-blue-600 hover:bg-blue-500 shadow-blue-600/25"
+        className="fixed bottom-20 md:bottom-4 right-4 z-50 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition-all hover:scale-105 bg-blue-600 hover:bg-blue-500 shadow-blue-600/25"
         aria-label="Open chat"
       >
         <MessageCircle className="w-6 h-6 text-white" />
@@ -174,7 +174,7 @@ export function ChatWidget() {
 
   // Open state - show full chat widget
   return (
-    <div className="fixed bottom-4 right-4 z-50">
+    <div className="fixed bottom-20 md:bottom-4 right-4 z-50">
       {/* Close Button */}
       <button
         onClick={() => setIsOpen(false)}
